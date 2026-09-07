@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>CNC Precision Master</title>
+<style>
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout:none; }
+
+html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    position:fixed;
+    overflow:hidden;
+    overscroll-behavior:none;
+    background:#0a0e16;
+    font-family:'Segoe UI', Arial, sans-serif;
+    -webkit-user-select:none;
+    user-select:none;
+    touch-action:none;
+}
+
+canvas{
+    display:block;
+    touch-action:none;
+}
+
+#hud{
+    position:absolute;
+    top:16px;
+    left:16px;
+    color:#eafcff;
+    font-size:18px;
+    font-weight:bold;
+    text-shadow:2px 2px 4px black;
+    background:rgba(10,20,30,0.55);
+    border:2px solid #2ea6ff;
+    border-radius:10px;
+    padding:10px 16px;
+    line-height:1.5em;
+    pointer-events:none;
+}
+
+#hud .label{ color:#7fd8ff; font-weight:600; margin-right:6px;}
+
+#combo{
+    color:#ffd24a;
+}
+
+#story{
+    position:absolute;
+    top:16px;
+    right:16px;
+    color:white;
+    font-size:16px;
+    text-shadow:2px 2px 4px black;
+    background:rgba(10,20,30,0.55);
+    border:2px solid #2ea6ff;
+    border-radius:10px;
+    padding:10px 16px;
+    max-width:260px;
+    text-align:right;
+    pointer-events:none;
+}
+
+body.touch #hud{
+    font-size:24px;
+    padding:14px 20px;
+    top:24px;
+    left:24px;
+}
+
+body.touch #story{
+    font-size:20px;
+    max-width:320px;
+    padding:14px 20px;
+    top:24px;
+    right:24px;
+}
+
+</style>
+</head>
+<body>
+
+<div id="hud">
+<div><span class="label">SCORE</span><span id="scoreVal">0</span></div>
+<div><span class="label">LIVES</span><span id="livesVal">3</span></div>
+<div id="combo"></div>
+</div>
+
+<div id="story">Drag the right tool onto the glowing zone, then tap when the needle hits the green zone.</div>
+
+<canvas id="game"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", ()=>setTimeout(resize,300));
+
+/* =====================
+   KIOSK / TOUCHSCREEN GUARDS
+===================== */
+
+const IS_TOUCH = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+if(IS_TOUCH) document.body.classList.add("touch");
+
+// Block pinch-zoom, double-tap-zoom, pull-to-refresh and page scroll/bounce
+document.addEventListener("gesturestart", e=>e.preventDefault());
+document.addEventListener("gesturechange", e=>e.preventDefault());
+document.addEventListener("contextmenu", e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+    const now = Date.now();
+    if(now - lastTouchEnd <= 300) e.preventDefault(); // kill double-tap zoom
+    lastTouchEnd = now;
+}, {passive:false});
+
+document.addEventListener("touchmove", (e)=>{ e.preventDefault(); }, {passive:false});
+
+/* =====================
+   IDLE / ATTRACT MODE
+   Keeps the kiosk from getting stuck on an abandoned round or a
+   finished screen; auto-resets so the next visitor gets a fresh game.
+===================== */
+
+let lastInteraction = performance.now();
+function markInteraction(){ lastInteraction = performance.now(); }
+
+function checkIdle(now){
+    const idle = now - lastInteraction;
+    if(state==="result" || state==="gameover"){
+        if(idle > 9000) resetToStart();
+    } else if(state==="playing" || state==="aiming"){
+        if(idle > 45000) resetToStart();
+    }
+}
+
+function resetToStart(){
+    state = "start";
+    dragTool = null;
+    gauge.active = false;
+    lastInteraction = performance.now();
+}
+
+/* =====================
+   ASSETS
+===================== */
+
+function loadImg(src){
+    const i = new Image();
+    i.src = src;
+    return i;
+}
+
+const background = loadImg("factory_background.png");
+const cncMachine = loadImg("cnc_machine.png");
+const engineImg  = loadImg("engine_block.png");
+const drillImg   = loadImg("drill_tool.png");
+const millImg    = loadImg("mill_tool.png");
+const popupImg   = loadImg("popup.png");
+
+/* =====================
+   GAME CONSTANTS
+===================== */
+
+const TOOL_TYPES = { DRILL:"drill", MILL:"mill" };
+
+const OPS = [
+    { type:TOOL_TYPES.DRILL, fx:0.30, fy:0.30 },
+    { type:TOOL_TYPES.DRILL, fx:0.44, fy:0.28 },
+    { type:TOOL_TYPES.MILL,  fx:0.14, fy:0.55 },
+    { type:TOOL_TYPES.DRILL, fx:0.58, fy:0.30 },
+    { type:TOOL_TYPES.DRILL, fx:0.72, fy:0.32 },
+    { type:TOOL_TYPES.MILL,  fx:0.85, fy:0.58 },
+];
+
+const MAX_LIVES = 3;
+
+/* =====================
+   STATE
+===================== */
+
+let state = "start"; // start | playing | aiming | result | gameover
+let score = 0;
+let lives = MAX_LIVES;
+let combo = 0;
+let round = 0; // number of ops completed (for difficulty ramp)
+let targets = [];
+let activeTargetIndex = -1;
+
+let shakeTime = 0;
+let flashTime = 0;
+let flashColor = "255,80,80";
+
+let particles = [];
+
+/* Needle gauge state */
+let gauge = {
+    active:false,
+    startTime:0,
+    speed:0.0028,
+    width:380,
+    lastGrade:null,
+    lastGradeTime:0
+};
+
+// Zone sizes as a fraction of gauge width, so difficulty stays
+// consistent whether the gauge is small (desktop) or large (kiosk).
+const GAUGE_PERFECT_RATIO = 0.058;
+const GAUGE_GOOD_RATIO = 0.158;
+
+/* Tool drag state */
+const engineBox = { x:0, y:0, width:0, height:0 };
+
+const toolSlots = {
+    drill: { x:0, y:0, size:96, home:{x:0,y:0} },
+    mill:  { x:0, y:0, size:96, home:{x:0,y:0} }
+};
+
+// Bigger hit targets everywhere on touchscreens (fingers aren't cursors)
+const TARGET_HIT_RADIUS = IS_TOUCH ? 60 : 42;
+
+let dragTool = null; // {type, x, y, size, offsetX, offsetY}
+
+function layout(){
+    engineBox.width = Math.min(360, canvas.width*0.42);
+    engineBox.height = engineBox.width;
+    engineBox.x = canvas.width/2 - engineBox.width/2;
+    engineBox.y = canvas.height/2 - engineBox.height/2 - 20;
+
+    const slotSize = IS_TOUCH
+        ? Math.max(130, Math.min(canvas.width, canvas.height) * 0.16)
+        : 96;
+    toolSlots.drill.size = slotSize;
+    toolSlots.mill.size = slotSize;
+
+    const gap = slotSize + 30;
+    const baseX = slotSize/2 + 24;
+    const baseY = canvas.height - slotSize/2 - 30;
+
+    toolSlots.drill.home.x = baseX;
+    toolSlots.drill.home.y = baseY;
+    toolSlots.mill.home.x = baseX + gap;
+    toolSlots.mill.home.y = baseY;
+
+    gauge.width = Math.min(IS_TOUCH ? 560 : 460, canvas.width*0.62);
+}
+layout();
+window.addEventListener("resize", layout);
+
+function buildTargets(){
+    targets = OPS.map((op,i)=>({
+        type: op.type,
+        x: engineBox.x + op.fx*engineBox.width,
+        y: engineBox.y + op.fy*engineBox.height,
+        done:false,
+        grade:null,
+        index:i
+    }));
+}
+buildTargets();
+
+/* =====================
+   HELPERS
+===================== */
+
+function dist(x1,y1,x2,y2){ return Math.hypot(x1-x2,y1-y2); }
+
+function spawnParticles(x,y,color,count,spread){
+    for(let i=0;i<count;i++){
+        particles.push({
+            x, y,
+            vx:(Math.random()-0.5)*spread,
+            vy:(Math.random()-0.5)*spread - 1,
+            life:1,
+            color
+        });
+    }
+}
+
+function updateParticles(dt){
+    particles.forEach(p=>{
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.08;
+        p.life -= dt*0.0016;
+    });
+    particles = particles.filter(p=>p.life>0);
+}
+
+function drawParticles(){
+    particles.forEach(p=>{
+        ctx.globalAlpha = Math.max(p.life,0);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x-2, p.y-2, 4, 4);
+        ctx.globalAlpha = 1;
+    });
+}
+
+function firstUnfinishedTarget(){
+    return targets.find(t=>!t.done);
+}
+
+/* =====================
+   INPUT
+===================== */
+
+function pointerPos(e){
+    if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+    if(e.changedTouches && e.changedTouches[0]) return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY};
+    return {x:e.clientX, y:e.clientY};
+}
+
+function insideToolSlot(px,py,slot){
+    const pad = IS_TOUCH ? 16 : 0; // generous margin so a fingertip still registers
+    return px>=slot.home.x-slot.size/2-pad && px<=slot.home.x+slot.size/2+pad &&
+           py>=slot.home.y-slot.size/2-pad && py<=slot.home.y+slot.size/2+pad;
+}
+
+function onPointerDown(e){
+    const p = pointerPos(e);
+
+    if(state==="start"){
+        if(clickedStartButton(p)) startGame();
+        return;
+    }
+    if(state==="gameover"){
+
+    if(clickedStartButton(p))
+        restartGame();
+
+    return;
+}
+
+if(state==="result"){
+
+    if(clickedStartButton(p)){
+
+        window.location.href =
+        "../stage4/stage4.html";
+
+    }
+
+    return;
+}
+    if(state==="aiming"){
+        strike();
+        return;
+    }
+    if(state!=="playing") return;
+
+    if(insideToolSlot(p.x,p.y,toolSlots.drill)){
+        dragTool = {type:TOOL_TYPES.DRILL, x:p.x, y:p.y, size:toolSlots.drill.size};
+    } else if(insideToolSlot(p.x,p.y,toolSlots.mill)){
+        dragTool = {type:TOOL_TYPES.MILL, x:p.x, y:p.y, size:toolSlots.mill.size};
+    }
+}
+
+function onPointerMove(e){
+    if(!dragTool) return;
+    const p = pointerPos(e);
+    dragTool.x = p.x;
+    dragTool.y = p.y;
+}
+
+function onPointerUp(e){
+    if(!dragTool) return;
+
+    let hit = null;
+    for(const t of targets){
+        if(t.done) continue;
+        if(dist(dragTool.x, dragTool.y, t.x, t.y) < TARGET_HIT_RADIUS){
+            hit = t;
+            break;
+        }
+    }
+
+    if(hit){
+        if(hit.type === dragTool.type){
+            beginAiming(hit);
+        } else {
+            triggerMiss(hit.x, hit.y, "WRONG TOOL");
+        }
+    }
+
+    dragTool = null;
+}
+
+canvas.addEventListener("mousedown", (e)=>{ markInteraction(); onPointerDown(e); });
+canvas.addEventListener("mousemove", (e)=>{ markInteraction(); onPointerMove(e); });
+canvas.addEventListener("mouseup", (e)=>{ markInteraction(); onPointerUp(e); });
+
+canvas.addEventListener("touchstart", (e)=>{
+    e.preventDefault();
+    markInteraction();
+    onPointerDown(e);
+}, {passive:false});
+
+canvas.addEventListener("touchmove", (e)=>{
+    e.preventDefault();
+    markInteraction();
+    onPointerMove(e);
+}, {passive:false});
+
+canvas.addEventListener("touchend", (e)=>{
+    e.preventDefault();
+    markInteraction();
+    onPointerUp(e);
+}, {passive:false});
+
+window.addEventListener("keydown", (e)=>{
+    if(e.code === "Space"){
+        e.preventDefault();
+        markInteraction();
+        if(state==="aiming") strike();
+        else if(state==="start") startGame();
+        else if(state==="gameover" || state==="result") restartGame();
+    }
+});
+
+/* =====================
+   GAME FLOW
+===================== */
+
+function requestKioskFullscreen(){
+    // Best-effort: many kiosk browsers already run fullscreen/locked down,
+    // but this covers the case where a user gesture is required.
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if(req && !document.fullscreenElement){
+        try{ req.call(el).catch(()=>{}); } catch(err){ /* ignore */ }
+    }
+}
+
+function startGame(){
+    if(IS_TOUCH) requestKioskFullscreen();
+    score = 0;
+    lives = MAX_LIVES;
+    combo = 0;
+    round = 0;
+    buildTargets();
+    state = "playing";
+}
+
+function restartGame(){ startGame(); }
+
+function beginAiming(target){
+    activeTargetIndex = target.index;
+    state = "aiming";
+    gauge.active = true;
+    gauge.startTime = performance.now();
+    gauge.speed = 0.0026 + round*0.00035;
+    gauge.lastGrade = null;
+}
+
+function strike(){
+    const t = targets[activeTargetIndex];
+    if(!t) return;
+
+    const elapsed = performance.now() - gauge.startTime;
+    const center = gauge.width/2;
+    const pos = center + Math.sin(elapsed*gauge.speed) * (center-10);
+    const delta = Math.abs(pos-center);
+
+    let grade;
+    if(delta <= gauge.width*GAUGE_PERFECT_RATIO) grade = "PERFECT";
+    else if(delta <= gauge.width*GAUGE_GOOD_RATIO) grade = "GOOD";
+    else grade = "MISS";
+
+    gauge.lastGrade = grade;
+    gauge.lastGradeTime = performance.now();
+
+    if(grade === "MISS"){
+        triggerMiss(t.x, t.y, "MISS");
+        state = "playing";
+        gauge.active = false;
+        return;
+    }
+
+    t.done = true;
+    round++;
+
+    if(grade === "PERFECT"){
+        combo++;
+        const mult = 1 + Math.min(combo-1,4)*0.25;
+        score += Math.round(150*mult);
+        spawnParticles(t.x, t.y, "#ffd24a", 26, 6);
+        spawnParticles(t.x, t.y, "#ffffff", 10, 4);
+    } else {
+        combo = 0;
+        score += 70;
+        spawnParticles(t.x, t.y, "#7fd8ff", 16, 4);
+    }
+
+    document.getElementById("scoreVal").innerText = score;
+
+    state = "playing";
+    gauge.active = false;
+
+    if(!firstUnfinishedTarget()){
+        finishGame();
+    }
+}
+
+function triggerMiss(x,y,label){
+    lives--;
+    combo = 0;
+    shakeTime = 260;
+    flashTime = 260;
+    flashColor = "255,60,60";
+    spawnParticles(x,y,"#ff5050",20,6);
+    document.getElementById("livesVal").innerText = Math.max(lives,0);
+
+    if(lives<=0){
+        state = "gameover";
+    }
+}
+
+function finishGame(){
+    state = "result";
+}
+
+/* =====================
+   UI HELPERS (start button rect) =====================*/
+
+function startButtonRect(){
+    const w = IS_TOUCH ? 280 : 220;
+    const h = IS_TOUCH ? 78 : 56;
+    return { x: canvas.width/2 - w/2, y: canvas.height/2 + 200, w, h };
+}
+
+function clickedStartButton(p){
+    const r = startButtonRect();
+    return p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h;
+}
+
+/* =====================
+   UPDATE
+===================== */
+
+let lastTime = performance.now();
+
+function update(now){
+    const dt = now - lastTime;
+    lastTime = now;
+
+    updateParticles(dt);
+    checkIdle(now);
+
+    if(shakeTime>0) shakeTime -= dt;
+    if(flashTime>0) flashTime -= dt;
+
+    document.getElementById("combo").innerText = combo>1 ? ("COMBO x"+combo) : "";
+
+    requestAnimationFrame(update);
+}
+requestAnimationFrame(update);
+
+/* =====================
+   DRAW
+===================== */
+
+function drawCover(img,x,y,w,h){
+    if(!img.complete || img.naturalWidth===0) return;
+    ctx.drawImage(img,x,y,w,h);
+}
+
+function drawBackground(){
+    if(background.complete){
+        const scale = Math.max(canvas.width/background.width, canvas.height/background.height);
+        const w = background.width*scale, h = background.height*scale;
+        ctx.drawImage(background, canvas.width/2-w/2, canvas.height/2-h/2, w, h);
+    } else {
+        ctx.fillStyle = "#121824";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    ctx.fillStyle = "rgba(5,10,18,0.35)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawMachineFrame(){
+    const size = Math.min(canvas.height*0.95, canvas.width*0.8);
+    drawCover(cncMachine, canvas.width/2-size/2, canvas.height/2-size/2 + 10, size, size);
+}
+
+function drawEngine(){
+    drawCover(engineImg, engineBox.x, engineBox.y, engineBox.width, engineBox.height);
+
+    targets.forEach(t=>{
+        if(!t.done) return;
+        ctx.beginPath();
+        ctx.arc(t.x,t.y, t.type===TOOL_TYPES.DRILL?9:13, 0, Math.PI*2);
+        ctx.fillStyle = "#1c2128";
+        ctx.fill();
+        ctx.strokeStyle = "#6fbfe8";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    });
+
+    targets.forEach(t=>{
+        if(t.done) return;
+        const isActive = state==="aiming" && t.index===activeTargetIndex;
+        const pulse = (isActive?26:18) + Math.sin(performance.now()*0.01)*6;
+
+        ctx.beginPath();
+        ctx.arc(t.x,t.y,pulse,0,Math.PI*2);
+        ctx.fillStyle = t.type===TOOL_TYPES.DRILL
+            ? "rgba(0,255,140,0.30)"
+            : "rgba(255,180,0,0.30)";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(t.x,t.y,6,0,Math.PI*2);
+        ctx.fillStyle = t.type===TOOL_TYPES.DRILL ? "#00ff8c" : "#ffb400";
+        ctx.fill();
+
+        // small icon hint above target
+        ctx.font = "11px Arial";
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.textAlign = "center";
+        ctx.fillText(t.type===TOOL_TYPES.DRILL?"DRILL":"MILL", t.x, t.y - pulse - 8);
+    });
+}
+
+function drawToolSlot(slot,img,label,type){
+    const s = slot.size;
+    ctx.save();
+    ctx.strokeStyle = (state==="playing" && firstUnfinishedTarget() && firstUnfinishedTarget().type===type)
+        ? "#00ff8c" : "rgba(150,190,220,0.6)";
+    ctx.lineWidth = 3;
+    ctx.fillStyle = "rgba(10,20,30,0.55)";
+    roundRect(slot.home.x-s/2, slot.home.y-s/2, s, s, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    if(!(dragTool && dragTool.type===type)){
+        drawCover(img, slot.home.x-s/2+8, slot.home.y-s/2+8, s-16, s-16);
+    }
+
+    ctx.font = "12px Arial";
+    ctx.fillStyle = "#cfeeff";
+    ctx.textAlign = "center";
+    ctx.fillText(label, slot.home.x, slot.home.y+s/2+18);
+    ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+}
+
+function drawDragTool(){
+    if(!dragTool) return;
+    const img = dragTool.type===TOOL_TYPES.DRILL ? drillImg : millImg;
+    const s = dragTool.size;
+    drawCover(img, dragTool.x-s/2, dragTool.y-s/2, s, s);
+}
+
+function drawGauge(){
+    if(state!=="aiming") return;
+
+    const t = targets[activeTargetIndex];
+    const w = gauge.width, h = IS_TOUCH ? 40 : 26;
+    const x = canvas.width/2 - w/2;
+    const y = canvas.height - (IS_TOUCH ? 190 : 150);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(10,15,22,0.75)";
+    roundRect(x-10,y-10,w+20,h+64,14);
+    ctx.fill();
+    ctx.strokeStyle = "#2ea6ff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // track
+    ctx.fillStyle = "#20303f";
+    ctx.fillRect(x,y,w,h);
+
+    const center = w/2;
+
+    // miss zone
+    ctx.fillStyle = "rgba(255,70,70,0.35)";
+    ctx.fillRect(x,y,w,h);
+
+    // good zone
+    const goodHalf = w*GAUGE_GOOD_RATIO;
+    ctx.fillStyle = "rgba(80,190,255,0.55)";
+    ctx.fillRect(x+center-goodHalf,y,goodHalf*2,h);
+
+    // perfect zone
+    const perfHalf = w*GAUGE_PERFECT_RATIO;
+    ctx.fillStyle = "rgba(0,255,140,0.85)";
+    ctx.fillRect(x+center-perfHalf,y,perfHalf*2,h);
+
+    // needle
+    const elapsed = performance.now() - gauge.startTime;
+    const pos = center + Math.sin(elapsed*gauge.speed) * (center-10);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+pos-2, y-8, 4, h+16);
+    ctx.beginPath();
+    ctx.moveTo(x+pos-7,y-8);
+    ctx.lineTo(x+pos+7,y-8);
+    ctx.lineTo(x+pos,y-16);
+    ctx.closePath();
+    ctx.fillStyle = "#ffd24a";
+    ctx.fill();
+
+    ctx.font = "bold 14px Arial";
+    ctx.fillStyle = "#eafcff";
+    ctx.textAlign = "center";
+    ctx.fillText(IS_TOUCH ? "TAP TO STRIKE" : "STRIKE (SPACE or CLICK)", x+center, y+h+22);
+
+    ctx.font = "12px Arial";
+    ctx.fillStyle = t.type===TOOL_TYPES.DRILL ? "#00ff8c" : "#ffb400";
+    ctx.fillText(t.type.toUpperCase()+" OPERATION", x+center, y-16);
+
+    ctx.restore();
+
+    if(gauge.lastGrade && performance.now()-gauge.lastGradeTime < 500){
+        ctx.font = "bold 26px Arial";
+        ctx.fillStyle = gauge.lastGrade==="PERFECT" ? "#ffd24a" : gauge.lastGrade==="GOOD" ? "#7fd8ff" : "#ff5050";
+        ctx.textAlign = "center";
+        ctx.fillText(gauge.lastGrade, canvas.width/2, y-40);
+    }
+}
+
+function drawFlash(){
+    if(flashTime<=0) return;
+    const a = (flashTime/260)*0.35;
+    ctx.fillStyle = "rgba("+flashColor+","+a+")";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawModal(title, lines, buttonLabel){
+    const size = Math.min(IS_TOUCH ? 800 : 700, canvas.width*0.9, canvas.height*0.9);
+    const x = canvas.width/2 - size/2;
+    const y = canvas.height/2 - size/2;
+    drawCover(popupImg, x, y, size, size);
+
+    // blank inner area roughly 24%-75% x, 15%-78% y of the square image
+    const cx = x + size*0.5;
+    let cy = y + size*0.22;
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafcff";
+    ctx.font = "bold 26px Arial";
+    ctx.fillText(title, cx, cy);
+    cy += 42;
+
+    ctx.font = "14px Arial";
+    lines.forEach(line=>{
+        ctx.fillText(line, cx, cy);
+        cy += 22;
+    });
+
+    const r = startButtonRect();
+    ctx.fillStyle = "#00c96b";
+    roundRect(r.x, r.y, r.w, r.h, 12);
+    ctx.fill();
+    ctx.strokeStyle = "#eafcff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#06210f";
+    ctx.font = "bold 18px Arial";
+    ctx.fillText(buttonLabel, r.x+r.w/2, r.y+r.h/2+6);
+}
+
+function grade(){
+    const pct = score/900;
+    if(pct>=0.9) return "S";
+    if(pct>=0.75) return "A";
+    if(pct>=0.55) return "B";
+    return "C";
+}
+
+function draw(now){
+    ctx.save();
+
+    if(shakeTime>0){
+        const mag = (shakeTime/260)*6;
+        ctx.translate((Math.random()-0.5)*mag, (Math.random()-0.5)*mag);
+    }
+
+    drawBackground();
+    drawMachineFrame();
+    drawEngine();
+    drawParticles();
+    drawGauge();
+    drawFlash();
+
+    if(state==="playing" || state==="aiming"){
+        drawToolSlot(toolSlots.drill, drillImg, "DRILL", TOOL_TYPES.DRILL);
+        drawToolSlot(toolSlots.mill, millImg, "MILL", TOOL_TYPES.MILL);
+        drawDragTool();
+    }
+
+    if(state==="start"){
+
+    drawModal(
+
+        "WORK ORDER #03",
+
+        [
+
+        "CNC MACHINING OPERATION",
+
+        "",
+
+        "The engine casting has been approved",
+
+        "and is ready for precision machining.",
+
+        "",
+
+        "• Use the correct cutting tool",
+
+        "• Complete all machining operations",
+
+        "• Time the machining process accurately",
+
+        "• Avoid production errors",
+
+        "",
+
+        "Target: Achieve the highest",
+
+        "quality grade possible."
+
+        ],
+
+        "BEGIN MACHINING"
+
+    );
+
+}
+
+    if(state==="result"){
+        drawModal("MACHINING COMPLETE",
+            ["Final Score: "+score,
+             "Grade: "+grade(),
+             "Nice work, operator."],
+            "NEXT STAGE");
+    }
+
+    if(state==="gameover"){
+        drawModal("MACHINE STOPPED",
+            ["Out of lives.",
+             "Final Score: "+score],
+            "RETRY");
+    }
+
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+</script>
+</body>
+</html>

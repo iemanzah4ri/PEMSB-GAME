@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+
+<title>Stage 4 - Engine Assembly</title>
+
+<style>
+
+html,body{
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background:#121824;
+    touch-action:none;
+    user-select:none;
+    font-family:Arial,sans-serif;
+}
+
+canvas{
+    display:block;
+}
+
+#hud{
+    position:absolute;
+    top:20px;
+    left:20px;
+    color:white;
+    font-size:28px;
+    font-weight:bold;
+    z-index:100;
+}
+
+#story{
+    position:absolute;
+    top:65px;
+    left:20px;
+    color:white;
+    font-size:20px;
+    z-index:100;
+}
+
+#beginBtn{
+
+    margin-top:20px;
+
+    width:280px;
+
+    height:60px;
+
+    border:none;
+
+    border-radius:15px;
+
+    background:#00ff88;
+
+    color:black;
+
+    font-size:24px;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+}
+
+#nextStage{
+
+    display:none;
+
+    position:absolute;
+
+    left:50%;
+
+    bottom:40px;
+
+    transform:translateX(-50%);
+
+    width:350px;
+
+    height:80px;
+
+    border:none;
+
+    border-radius:15px;
+
+    background:#00ff88;
+
+    color:black;
+
+    font-size:24px;
+
+    font-weight:bold;
+
+    z-index:6000;
+
+}
+
+#introPopup{
+
+    position:fixed;
+
+    left:0;
+    top:0;
+
+    width:100%;
+    height:100%;
+
+    background:
+    rgba(0,0,0,0.8);
+
+    display:flex;
+
+    justify-content:center;
+    align-items:center;
+
+    z-index:5000;
+
+}
+
+#popupContainer{
+
+    position:relative;
+
+    width:650px;
+
+}
+
+#popupBg{
+
+    width:100%;
+
+}
+
+#popupContent{
+
+    position:absolute;
+
+    top:120px;
+
+    left:170px;
+
+    right:170px;
+
+    bottom:140px;
+
+    text-align:center;
+
+    color:white;
+
+}
+
+#progressBox{
+
+    position:absolute;
+
+    right:20px;
+
+    top:20px;
+
+    background:
+    rgba(0,0,0,0.6);
+
+    color:white;
+
+    padding:15px;
+
+    border-radius:10px;
+
+}
+
+
+
+
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+Assembly: 0 / 5
+</div>
+
+<div id="story">
+Drag all engine components onto the assembly stand
+</div>
+
+<div id="introPopup">
+
+    <div id="popupContainer">
+
+    <img
+    id="popupBg"
+    src="popup.png">
+
+    <div id="popupContent">
+
+            <h1>WORK ORDER #04</h1>
+
+            <h2>ENGINE ASSEMBLY</h2>
+
+            <p>
+
+                Install all engine components onto the
+                assembly stand.
+
+            </p>
+
+            <ul>
+
+                <li>Crankshaft</li>
+                <li>Piston</li>
+                <li>Timing Chain Cover</li>
+                <li>Cylinder Head</li>
+                <li>Valve Cover</li>
+
+            </ul>
+
+            <button id="beginBtn">
+
+                START OPERATION
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<canvas id="game"></canvas>
+<button id="nextStage">
+TEST YOUR NEW ENGINE
+</button>
+
+<script>
+
+document.addEventListener(
+    "contextmenu",
+    e => e.preventDefault()
+);
+
+document
+.getElementById("beginBtn")
+.addEventListener(
+"click",
+()=>{
+
+    if(
+        document.documentElement
+        .requestFullscreen
+    ){
+
+        document
+        .documentElement
+        .requestFullscreen();
+
+    }
+
+    document
+    .getElementById("introPopup")
+    .style.display =
+    "none";
+
+    
+
+}
+
+);
+document
+    .getElementById("nextStage")
+    .addEventListener(
+    "click",
+    ()=>{
+
+        window.location.href =
+        "../stage5/stage5.html";
+
+    }
+    );
+
+const canvas =
+document.getElementById("game");
+
+
+const ctx =
+canvas.getContext("2d");
+
+/* IMAGES */
+
+const bg = new Image();
+bg.src = "assembly_station.png";
+
+const crankshaft = new Image();
+crankshaft.src = "crankshaft.png";
+
+const piston = new Image();
+piston.src = "piston.png";
+
+const chaincover = new Image();
+chaincover.src = "timing_chain_cover.png";
+
+const head = new Image();
+head.src = "cylinder_head.png";
+
+const cover = new Image();
+cover.src = "valve_cover.png";
+
+const completeEngine = new Image();
+completeEngine.src = "complete_engine.png";
+
+const blueprint = new Image();
+blueprint.src = "engine_blueprint.png";
+
+function resizeCanvas(){
+
+    canvas.width =
+    window.innerWidth;
+
+    canvas.height =
+    window.innerHeight;
+
+}
+
+resizeCanvas();
+
+window.addEventListener(
+    "resize",
+    resizeCanvas
+);
+
+const blueprintConfig = {
+
+    x: canvas.width/2 - 200,
+
+    y: canvas.height/2 - 200,
+
+    width: 400,
+
+    height: 400
+
+};
+
+const slots = [
+
+{
+    name:"Crankshaft",
+    x:blueprintConfig.x + 125,
+    y:blueprintConfig.y + 200,
+    width:150,
+    height:50
+},
+
+{
+    name:"Piston",
+    x:blueprintConfig.x + 125,
+    y:blueprintConfig.y + 250,
+    width:150,
+    height:60
+},
+
+{
+    name:"Timing Chain Cover",
+    x:blueprintConfig.x + 15,
+    y:blueprintConfig.y + 100,
+    width:75,
+    height:130
+},
+
+{
+    name:"Cylinder Head",
+    x:blueprintConfig.x + 125,
+    y:blueprintConfig.y + 55,
+    width:150,
+    height:50
+},
+
+{
+    name:"Valve Cover",
+    x:blueprintConfig.x + 125,
+    y:blueprintConfig.y,
+    width:150,
+    height:45
+}
+];
+
+/* PARTS */
+
+const parts = [
+
+{
+name:"Crankshaft",
+image:crankshaft,
+placed:false
+},
+
+{
+name:"Piston",
+image:piston,
+placed:false
+},
+
+{
+name:"Timing Chain Cover",
+image:chaincover,
+placed:false
+},
+
+{
+name:"Cylinder Head",
+image:head,
+placed:false
+},
+
+{
+name:"Valve Cover",
+image:cover,
+placed:false
+}
+
+];
+
+parts.forEach(part=>{
+
+    part.x =
+    50 +
+    Math.random()*280;
+
+    part.y =
+    120 +
+    Math.random()*
+    (window.innerHeight-300);
+
+});
+
+/* STATES */
+
+let draggedPart = null;
+let hoveredPart = null;
+
+let offsetX = 0;
+let offsetY = 0;
+
+let placedCount = 0;
+let completed = false;
+
+let flashAlpha = 0;
+
+let glowTimer = 0;
+
+let engineAlpha = 0;
+
+/* HELPERS */
+
+function getPart(x,y){
+
+    for(
+
+        let i=
+        parts.length-1;
+
+        i>=0;
+
+        i--
+
+    ){
+
+        const part =
+        parts[i];
+
+        if(part.placed)
+        continue;
+
+        if(
+
+            x >= part.x &&
+            x <= part.x+100 &&
+
+            y >= part.y &&
+            y <= part.y+100
+
+        ){
+
+            return part;
+
+        }
+
+    }
+
+    return null;
+
+}
+
+/* DRAG */
+
+function dragStart(x,y){
+
+    hoveredPart =
+    getPart(x,y);
+
+    if(!hoveredPart)
+    return;
+
+    draggedPart =
+    hoveredPart;
+
+    offsetX =
+    x-draggedPart.x;
+
+    offsetY =
+    y-draggedPart.y;
+
+}
+
+function dragMove(x,y){
+
+    if(!draggedPart)
+    return;
+
+    draggedPart.x =
+
+    Math.max(
+        0,
+        Math.min(
+            canvas.width-100,
+            x-offsetX
+        )
+    );
+
+    draggedPart.y =
+
+    Math.max(
+        0,
+        Math.min(
+            canvas.height-100,
+            y-offsetY
+        )
+    );
+
+}
+
+function dragEnd(){
+
+    if(!draggedPart)
+    return;
+
+    let centerX =
+    draggedPart.x + 50;
+
+    let centerY =
+    draggedPart.y + 50;
+
+    slots.forEach(slot=>{
+
+        if(
+
+            draggedPart.name === slot.name &&
+
+            centerX >= slot.x &&
+            centerX <= slot.x + slot.width &&
+
+            centerY >= slot.y &&
+            centerY <= slot.y + slot.height
+
+        ){
+
+            draggedPart.placed = true;
+
+            draggedPart.installX =
+            slot.x +
+            (slot.width - 80)/2;
+
+            draggedPart.installY =
+            slot.y +
+            (slot.height - 80)/2;
+
+            glowTimer = 20;
+
+            placedCount++;
+
+            document
+            .getElementById("hud")
+            .innerText =
+            "Assembly: " +
+            placedCount +
+            " / " +
+            parts.length;
+
+            document
+            .getElementById("story")
+            .innerText =
+            draggedPart.name +
+            " Installed!";
+
+        }
+
+    });
+
+    if(
+        placedCount ===
+        parts.length
+    ){
+
+        completed = true;
+
+        flashAlpha = 1;
+
+        engineAlpha = 0;
+
+        document
+        .getElementById("story")
+        .innerText =
+        "✅ Engine Assembly Complete!";
+
+    }
+
+    draggedPart = null;
+
+}
+
+
+/* EVENTS */
+
+canvas.addEventListener(
+"mousedown",
+e=>dragStart(
+e.clientX,
+e.clientY
+));
+
+canvas.addEventListener(
+"mousemove",
+e=>dragMove(
+e.clientX,
+e.clientY
+));
+
+canvas.addEventListener(
+"mouseup",
+dragEnd
+);
+
+canvas.addEventListener(
+"touchstart",
+e=>{
+
+const t =
+e.touches[0];
+
+dragStart(
+t.clientX,
+t.clientY
+);
+
+},
+{passive:false}
+);
+
+canvas.addEventListener(
+"touchmove",
+e=>{
+
+e.preventDefault();
+
+const t =
+e.touches[0];
+
+dragMove(
+t.clientX,
+t.clientY
+);
+
+},
+{passive:false}
+);
+
+canvas.addEventListener(
+"touchend",
+dragEnd
+);
+
+/* DRAW */
+
+function draw(){
+
+ctx.clearRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+ctx.drawImage(
+bg,
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+const blueprintWidth = 500;
+const blueprintHeight = 500;
+
+const blueprintX =
+canvas.width/2 - blueprintWidth/2;
+
+const blueprintY =
+canvas.height/2 - blueprintHeight/2;
+
+
+
+ctx.drawImage(
+
+    blueprint,
+
+    blueprintConfig.x,
+    blueprintConfig.y,
+
+    blueprintConfig.width,
+    blueprintConfig.height
+
+);
+
+/* Assembly Glow */
+
+
+if(glowTimer > 0){
+
+    ctx.fillStyle =
+    "rgba(0,255,100,0.2)";
+
+    ctx.fillRect(
+
+    blueprintConfig.x,
+    blueprintConfig.y,
+
+    blueprintConfig.width,
+    blueprintConfig.height
+
+);
+
+    glowTimer--;
+
+}
+
+slots.forEach(slot=>{
+
+    ctx.fillStyle =
+    "rgba(255,255,255,0.15)";
+
+    ctx.strokeStyle =
+    "#00d2ff";
+
+    ctx.lineWidth = 3;
+
+    ctx.fillRect(
+
+        slot.x,
+        slot.y,
+
+        slot.width,
+        slot.height
+
+    );
+
+    ctx.strokeRect(
+
+        slot.x,
+        slot.y,
+
+        slot.width,
+        slot.height
+
+    );
+
+});
+
+/* Installed Parts */
+
+if(!completed){
+
+parts.forEach(part=>{
+
+if(!part.placed)
+return;
+
+ctx.drawImage(
+
+part.image,
+
+part.installX,
+part.installY,
+
+80,
+80
+
+);
+
+});
+
+}
+
+/* Available Parts */
+
+parts.forEach(part=>{
+
+if(part.placed)
+return;
+
+const floatY =
+
+Math.sin(
+Date.now()*0.003 +
+part.x
+)*5;
+
+if(
+part === hoveredPart
+){
+
+ctx.shadowColor =
+"#00ff88";
+
+ctx.shadowBlur =
+25;
+
+}else{
+
+ctx.shadowBlur =
+0;
+
+}
+
+ctx.drawImage(
+
+part.image,
+
+part.x,
+part.y + floatY,
+
+100,
+100
+
+);
+
+ctx.shadowBlur =
+0;
+
+});
+
+if(draggedPart){
+
+    ctx.fillStyle = "white";
+    ctx.font = "24px Arial";
+
+    ctx.fillText(
+        draggedPart.name,
+        canvas.width/2 - 80,
+        50
+    );
+
+}
+
+/* Complete Engine */
+
+if(completed){
+
+    document
+    .getElementById("nextStage")
+    .style.display =
+    "block";
+
+    if(engineAlpha < 1){
+
+        engineAlpha += 0.02;
+
+    }
+
+    ctx.globalAlpha =
+    engineAlpha;
+
+    ctx.drawImage(
+
+    completeEngine,
+
+    blueprintConfig.x,
+    blueprintConfig.y,
+
+    blueprintConfig.width,
+    blueprintConfig.height
+
+);
+
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle =
+    "#00ff88";
+
+    ctx.font =
+    "50px Arial";
+
+    ctx.fillText(
+
+        "ENGINE COMPLETE",
+
+        canvas.width/2 - 220,
+
+        80
+
+    );
+
+}
+
+/* Flash */
+
+if(flashAlpha > 0){
+
+ctx.fillStyle =
+"rgba(255,255,255," +
+flashAlpha +
+")";
+
+ctx.fillRect(
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+flashAlpha -= 0.03;
+
+}
+
+
+
+requestAnimationFrame(draw);
+
+}
+
+draw();
+
+</script>
+
+</body>
+</html>

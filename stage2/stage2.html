@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Stage 2 - Foundry Casting</title>
+
+<style>
+
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+
+html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    position:fixed;
+    overflow:hidden;
+    overscroll-behavior:none;
+    background:#0a0e16;
+    font-family:Arial, sans-serif;
+    -webkit-user-select:none;
+    user-select:none;
+    touch-action:none;
+}
+
+canvas{
+    display:block;
+    touch-action:none;
+}
+
+/* ===== Overlays ===== */
+
+.overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.82);
+    z-index:5000;
+    justify-content:center;
+    align-items:center;
+}
+.overlay.show{ display:flex; }
+
+.panelWrap{
+    position:relative;
+    width:700px;
+    max-width:92vw;
+}
+.panelWrap img.frame{ width:100%; display:block; }
+
+.panelContent{
+    position:absolute;
+    top:10%;
+    left:13%;
+    right:13%;
+    bottom:12%;
+
+    text-align:center;
+    color:#eafcff;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+}
+
+.panelContent h1{ margin:0 0 4px 0; font-size:26px; text-shadow:2px 2px 4px black; }
+.panelContent h2{ margin:0 0 8px 0; font-size:16px; color:#7fd8ff; font-weight:600; }
+.panelContent p, .panelContent li{ font-size:13.5px; line-height:1.4em; margin:2px 0; }
+.panelContent ul{ text-align:left; margin:6px auto; padding-left:22px; max-width:420px; }
+
+.bigBtn{
+    margin:14px auto 0 auto;
+    width:260px;
+    height:62px;
+    border:none;
+    border-radius:14px;
+    background:#00ff88;
+    color:#06210f;
+    font-size:22px;
+    font-weight:800;
+    cursor:pointer;
+    box-shadow:0 4px 0 #00a85c;
+}
+.bigBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 #00a85c; }
+.bigBtn.retry{ background:#ff5252; color:#3a0000; box-shadow:0 4px 0 #a10000; }
+.bigBtn.retry:active{ box-shadow:0 1px 0 #a10000; }
+
+.gradeLetter{ font-size:56px; font-weight:900; text-shadow:2px 2px 6px black; margin:2px 0; }
+.statLine{ font-size:15px; margin:2px 0; }
+
+/* ===== HUD ===== */
+
+#hud{
+    position:absolute;
+    top:16px;
+    left:16px;
+    background:rgba(8,14,22,0.68);
+    border:2px solid #ff9f1c;
+    padding:12px 16px;
+    border-radius:12px;
+    color:#eafcff;
+    font-size:17px;
+    line-height:1.5em;
+    z-index:20;
+    font-weight:600;
+    text-shadow:1px 1px 2px black;
+}
+#hud .k{ color:#ffbf6b; }
+
+#moldBox{
+    position:absolute;
+    top:16px;
+    right:16px;
+    background:rgba(8,14,22,0.68);
+    border:2px solid #ff9f1c;
+    padding:12px 16px;
+    border-radius:12px;
+    color:#eafcff;
+    font-size:16px;
+    z-index:20;
+    min-width:210px;
+    text-shadow:1px 1px 2px black;
+}
+#moldBox .bar{
+    width:100%; height:12px; background:#1b2735; border-radius:6px;
+    overflow:hidden; margin-top:6px; border:1px solid #ff9f1c;
+}
+#moldBox .fill{ height:100%; width:0%; background:#ff9f1c; }
+
+#story{
+    position:absolute;
+    top:130px;
+    right:16px;
+    color:white;
+    font-size:14px;
+    text-shadow:2px 2px 4px black;
+    background:rgba(8,14,22,0.6);
+    border:2px solid #ff9f1c;
+    border-radius:10px;
+    padding:10px 14px;
+    max-width:230px;
+    text-align:right;
+    z-index:20;
+}
+
+#alertBanner{
+    position:absolute;
+    top:0;left:0;right:0;
+    text-align:center;
+    padding:14px 10px;
+    font-size:22px;
+    font-weight:900;
+    color:#fff;
+    background:rgba(200,20,20,0.85);
+    z-index:30;
+    display:none;
+    text-shadow:1px 1px 3px black;
+    letter-spacing:1px;
+}
+#alertBanner.show{ display:block; animation:flash 0.5s infinite; }
+@keyframes flash{ 0%,100%{opacity:1;} 50%{opacity:0.45;} }
+
+/* ===== Controls ===== */
+
+#controls{
+    position:absolute;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:16px;
+    z-index:20;
+    align-items:center;
+}
+
+#pourBtn{
+    width:230px;
+    height:96px;
+    border:none;
+    border-radius:18px;
+    font-size:22px;
+    font-weight:800;
+    color:#3a1900;
+    background:#ff8800;
+    cursor:pointer;
+    box-shadow:0 5px 0 #a35400;
+    touch-action:none;
+}
+#pourBtn:active{ transform:translateY(4px); box-shadow:0 1px 0 #a35400; }
+#pourBtn small{ display:block; font-size:12px; font-weight:600; opacity:0.8; }
+
+#stokeBtn{
+    width:170px;
+    height:82px;
+    border:none;
+    border-radius:16px;
+    font-size:17px;
+    font-weight:800;
+    color:#3a1900;
+    background:#ffcf4a;
+    cursor:pointer;
+    box-shadow:0 5px 0 #a3760a;
+    touch-action:none;
+}
+#stokeBtn:active{ transform:translateY(4px); box-shadow:0 1px 0 #a3760a; }
+#stokeBtn small{ display:block; font-size:11px; font-weight:600; opacity:0.75; }
+#stokeBtn.disabled{ background:#3a4552 !important; color:#8fa2b3; cursor:default; }
+
+body.touch #hud{ font-size:20px; padding:16px 20px; top:22px; left:22px; }
+body.touch #moldBox{ font-size:18px; padding:16px 20px; top:22px; right:22px; min-width:230px; }
+body.touch #story{ top:150px; right:22px; font-size:16px; max-width:270px; }
+body.touch #alertBanner{ font-size:26px; padding:18px 10px; }
+body.touch #pourBtn{ width:260px; height:110px; font-size:24px; }
+body.touch #stokeBtn{ width:190px; height:96px; font-size:19px; }
+
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="hud">
+<span class="k">FILL</span> <span id="hudFill">0</span>%<br>
+<span class="k">TEMP</span> <span id="hudTemp">720</span>°C<br>
+<span class="k">LIVES</span> <span id="hudLives">3</span> &nbsp; <span class="k">SCORE</span> <span id="hudScore">0</span>
+</div>
+
+<div id="moldBox">
+<div id="moldName">ENGINE BLOCK MOULD</div>
+<div id="moldTarget" style="font-size:13px;color:#ffd9a0;">Perfect: 90-100%</div>
+<div class="bar"><div class="fill" id="moldFill"></div></div>
+</div>
+
+<div id="story">Hold POUR to fill the mould. The valve keeps flowing briefly after you let go, so release just before the target. Tap slag bubbles to skim them off.</div>
+
+<div id="alertBanner"></div>
+
+<div id="controls">
+<button id="pourBtn">HOLD TO POUR<small>momentum valve</small></button>
+<button id="stokeBtn">STOKE FURNACE<small id="stokeSub">ready</small></button>
+</div>
+
+<!-- INTRO -->
+<div class="overlay show" id="introOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="popup.png">
+        <div class="panelContent">
+
+    <h1>WORK ORDER #02</h1>
+
+<h2>FOUNDRY CASTING LINE</h2>
+
+<p>
+Cast three engine components using
+molten aluminium.
+</p>
+
+<ul>
+    <li>Engine Block</li>
+    <li>Cylinder Head</li>
+    <li>Crankshaft</li>
+</ul>
+
+<p>
+Maintain temperature, remove slag,
+and achieve the target fill level.
+</p>
+
+<p>
+<strong>90% - 100% = Perfect Cast</strong>
+</p>
+
+<button class="bigBtn" id="beginBtn">
+BEGIN CASTING
+</button>
+
+</div>
+
+    </div>
+</div>
+
+<!-- SUCCESS -->
+<div class="overlay" id="successOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="popup.png">
+        <div class="panelContent">
+            <h1>✅ CASTING COMPLETE</h1>
+            <div class="gradeLetter" id="finalGrade">S</div>
+            <div class="statLine" id="finalScore">Score: 0</div>
+            <div class="statLine">Block • Head • Crankshaft all cast</div>
+            <button class="bigBtn" id="nextStageBtn">NEXT STAGE</button>
+        </div>
+    </div>
+</div>
+
+<!-- FAILED -->
+<div class="overlay" id="failedOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="casting_failure.png">
+        <div class="panelContent" style="top:22%;">
+            <h1 id="failReason">PRODUCTION FAILURE</h1>
+            <button class="bigBtn retry" id="retryBtn">RETRY OPERATION</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", ()=>setTimeout(resize,300));
+
+/* =====================
+   KIOSK / TOUCHSCREEN GUARDS
+===================== */
+
+const IS_TOUCH = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+if(IS_TOUCH) document.body.classList.add("touch");
+
+document.addEventListener("gesturestart", e=>e.preventDefault());
+document.addEventListener("gesturechange", e=>e.preventDefault());
+document.addEventListener("contextmenu", e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+    const now = Date.now();
+    if(now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+}, {passive:false});
+
+document.addEventListener("touchmove", (e)=>{ e.preventDefault(); }, {passive:false});
+
+let lastInteraction = performance.now();
+function markInteraction(){ lastInteraction = performance.now(); }
+["mousedown","touchstart","keydown"].forEach(evt=>{
+    window.addEventListener(evt, markInteraction, {passive:true});
+});
+
+/* =====================
+   ASSETS
+===================== */
+
+function loadImg(src){ const i = new Image(); i.src = src; return i; }
+const bg = loadImg("stage2_background.png");
+
+/* =====================
+   GAME DATA
+===================== */
+
+const MOLDS = [
+    { name:"ENGINE BLOCK MOULD",  perfectMin:90, goodMin:75, fillMult:1.0  },
+    { name:"CYLINDER HEAD MOULD", perfectMin:92, goodMin:80, fillMult:1.25 },
+    { name:"CRANKSHAFT MOULD",    perfectMin:94, goodMin:85, fillMult:1.55 }
+];
+
+const MAX_LIVES = 3;
+const STOKE_COOLDOWN = 5;
+
+let moldIndex, fillAmount, temperature, valveOpen, holding;
+let lives, score, state; // state: "playing" | "success" | "failed"
+let stokeCooldown;
+let bubbles;
+let bubbleSpawnTimer;
+let sparks;
+let shakeTime;
+let attemptId = 0;
+
+function resetRun(){
+    moldIndex = 0;
+    lives = MAX_LIVES;
+    score = 0;
+    resetMoldAttempt(720);
+    state = "playing";
+    hideAllOverlays();
+}
+
+function resetMoldAttempt(startTemp){
+    fillAmount = 0;
+    temperature = startTemp;
+    valveOpen = 0;
+    holding = false;
+    stokeCooldown = 0;
+    bubbles = [];
+    bubbleSpawnTimer = 1 + Math.random()*1.5;
+    sparks = [];
+    shakeTime = 0;
+    attemptId++;
+}
+
+function hideAllOverlays(){
+    ["introOverlay","successOverlay","failedOverlay"].forEach(id=>{
+        document.getElementById(id).classList.remove("show");
+    });
+}
+
+/* =====================
+   CONTROLS
+===================== */
+
+const pourBtn = document.getElementById("pourBtn");
+const stokeBtn = document.getElementById("stokeBtn");
+
+function startPour(){ if(state==="playing") holding = true; }
+function stopPour(){ holding = false; }
+
+pourBtn.addEventListener("mousedown", (e)=>{ e.preventDefault(); markInteraction(); startPour(); });
+pourBtn.addEventListener("mouseup",   (e)=>{ e.preventDefault(); stopPour(); });
+pourBtn.addEventListener("mouseleave",(e)=>{ stopPour(); });
+pourBtn.addEventListener("touchstart",(e)=>{ e.preventDefault(); markInteraction(); startPour(); }, {passive:false});
+pourBtn.addEventListener("touchend",  (e)=>{ e.preventDefault(); stopPour(); }, {passive:false});
+pourBtn.addEventListener("touchcancel",(e)=>{ stopPour(); }, {passive:false});
+
+function tapButton(el, fn){
+    el.addEventListener("click", (e)=>{ e.preventDefault(); markInteraction(); fn(); });
+    el.addEventListener("touchend", (e)=>{ e.preventDefault(); markInteraction(); fn(); }, {passive:false});
+}
+
+tapButton(stokeBtn, ()=>{
+    if(state!=="playing" || stokeCooldown>0) return;
+    temperature = Math.min(760, temperature + 45);
+    stokeCooldown = STOKE_COOLDOWN;
+});
+
+document.getElementById("beginBtn").addEventListener("click", ()=>{ resetRun(); });
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+    resetRun();
+    document.getElementById("introOverlay").classList.remove("show");
+});
+document.getElementById("nextStageBtn").addEventListener("click", ()=>{
+
+    window.location.href = "../stage3/stage3.html";
+
+});
+
+window.addEventListener("keydown", (e)=>{
+    if(state!=="playing") return;
+    if(e.code==="Space"){ e.preventDefault(); startPour(); }
+    if(e.code==="KeyS") stokeBtn.click();
+});
+window.addEventListener("keyup", (e)=>{
+    if(e.code==="Space") stopPour();
+});
+
+/* Bubble-skim taps on canvas */
+function canvasPointer(e){
+    if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
+    if(e.changedTouches && e.changedTouches[0]) return {x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY};
+    return {x:e.clientX, y:e.clientY};
+}
+
+function handleCanvasTap(e){
+    if(state!=="playing") return;
+    const p = canvasPointer(e);
+    const hitR = IS_TOUCH ? 34 : 22;
+    for(let i=bubbles.length-1;i>=0;i--){
+        const b = bubbles[i];
+        if(Math.hypot(p.x-b.x, p.y-b.y) < hitR){
+            bubbles.splice(i,1);
+            score += 25;
+            for(let k=0;k<10;k++){
+                sparks.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:1,color:"#ffd24a"});
+            }
+            break;
+        }
+    }
+}
+canvas.addEventListener("mousedown", handleCanvasTap);
+canvas.addEventListener("touchstart", (e)=>{ handleCanvasTap(e); }, {passive:true});
+
+/* =====================
+   IDLE / ATTRACT MODE
+===================== */
+
+function checkIdle(now){
+    const idle = now - lastInteraction;
+    if(state==="failed"){
+        if(idle > 9000) backToIntro();
+    } else if(state==="success"){
+        if(idle > 12000) backToIntro();
+    } else if(state==="playing" && idle > 60000){
+        backToIntro();
+    }
+}
+
+function backToIntro(){
+    resetRun();
+    state = "intro";
+    document.getElementById("introOverlay").classList.add("show");
+    lastInteraction = performance.now();
+}
+
+/* =====================
+   RESULT HANDLING
+===================== */
+
+function fail(reason){
+    if(state!=="playing") return;
+    lives--;
+    document.getElementById("hudLives").innerText = Math.max(0,lives);
+    shakeTime = 300;
+
+    if(lives<=0){
+        state = "failed";
+        document.getElementById("failReason").innerText = reason;
+        document.getElementById("failedOverlay").classList.add("show");
+    } else {
+        resetMoldAttempt(Math.max(700, temperature));
+    }
+}
+
+function releasePour(){
+    const m = MOLDS[moldIndex];
+
+    if(fillAmount > 105){
+        fail("MOULD OVERFLOW");
+        return;
+    }
+    if(temperature < 680){
+        fail("CAST TOO COLD");
+        return;
+    }
+    if(fillAmount < m.goodMin){
+        fail("INSUFFICIENT MATERIAL");
+        return;
+    }
+
+    const perfect = fillAmount >= m.perfectMin;
+    score += perfect ? 150 : 80;
+
+    moldIndex++;
+    if(moldIndex >= MOLDS.length){
+        finishSuccess();
+    } else {
+        resetMoldAttempt(Math.min(750, temperature + 25));
+    }
+}
+
+function finishSuccess(){
+    state = "success";
+    const maxScore = MOLDS.length*150 + 150; // rough headroom incl. bubble bonuses
+    const pct = Math.max(0, Math.min(1, score/maxScore));
+    let grade = "C";
+    if(pct>=0.9) grade = "S";
+    else if(pct>=0.75) grade = "A";
+    else if(pct>=0.55) grade = "B";
+    document.getElementById("finalGrade").innerText = grade;
+    document.getElementById("finalScore").innerText = "Score: " + Math.round(score);
+    document.getElementById("successOverlay").classList.add("show");
+}
+
+/* =====================
+   CORE LOOP
+===================== */
+
+let lastTime = performance.now();
+
+function update(now){
+    const dt = Math.min(0.05, (now-lastTime)/1000);
+    lastTime = now;
+
+    checkIdle(now);
+
+    if(shakeTime>0) shakeTime -= dt*1000;
+
+    if(state==="playing"){
+        const m = MOLDS[moldIndex];
+
+        // valve momentum: opens/closes gradually, so releasing isn't instant
+        if(holding) valveOpen = Math.min(1, valveOpen + dt*2.6);
+        else valveOpen = Math.max(0, valveOpen - dt*3.1);
+
+        if(valveOpen>0){
+            fillAmount += valveOpen * m.fillMult * 26 * dt;
+        }
+
+        // temperature drift
+        temperature -= (holding ? 1.1 : 0.5) * dt * 10 * 0.1;
+        temperature = Math.max(600, temperature);
+
+        if(temperature < 650){
+            fail("METAL SOLIDIFIED");
+        } else if(fillAmount > 105 && state==="playing"){
+            fail("MOULD OVERFLOW");
+        }
+
+        if(stokeCooldown>0) stokeCooldown = Math.max(0, stokeCooldown-dt);
+
+        // slag bubbles while there's liquid to spoil
+        if(fillAmount>5 && fillAmount<103){
+            bubbleSpawnTimer -= dt;
+            if(bubbleSpawnTimer<=0){
+                spawnBubble();
+                bubbleSpawnTimer = 2.2 + Math.random()*2.2;
+            }
+        }
+        bubbles.forEach(b=> b.t += dt);
+        for(let i=bubbles.length-1;i>=0;i--){
+            if(bubbles[i].t > bubbles[i].life){
+                bubbles.splice(i,1);
+                score = Math.max(0, score-15);
+            }
+        }
+
+        sparks.forEach(s=>{ s.x+=s.vx; s.y+=s.vy; s.vy+=0.1; s.life-=dt*1.6; });
+        sparks = sparks.filter(s=>s.life>0);
+
+        updateHUD(m);
+
+        if(temperature < 700 && temperature >= 650){
+            setAlert("⚠ METAL COOLING — STOKE THE FURNACE!");
+        } else {
+            setAlert(null);
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+let wasHolding = false;
+let releasePending = false;
+
+requestAnimationFrame(update);
+
+/* Detect the release edge with a lightweight watcher, so the momentum
+   (residual valve flow) finishes before the pour is graded. Guards
+   against stale evaluations if a fail/reset happened in the meantime,
+   or if the player re-holds before the delay elapses. */
+setInterval(()=>{
+    if(state!=="playing"){ wasHolding = holding; return; }
+
+    if(wasHolding && !holding && !releasePending){
+        releasePending = true;
+        const capturedAttempt = attemptId;
+        setTimeout(()=>{
+            releasePending = false;
+            if(state==="playing" && attemptId===capturedAttempt && !holding){
+                releasePour();
+            }
+        }, 380);
+    }
+    wasHolding = holding;
+}, 50);
+
+function spawnBubble(){
+    const m = MOLDS[moldIndex];
+    const mould = getMouldRect();
+    const liquidTopY = mould.y + mould.height - mould.height*(fillAmount/100);
+    bubbles.push({
+        x: mould.x + 30 + Math.random()*(mould.width-60),
+        y: Math.max(mould.y+10, liquidTopY - 6),
+        t: 0,
+        life: 1.6 + Math.random()*0.5
+    });
+}
+
+function setAlert(text){
+    const el = document.getElementById("alertBanner");
+    if(text){ el.innerText = text; el.classList.add("show"); }
+    else el.classList.remove("show");
+}
+
+function statusEmoji(good, warn){ return good ? "🟢" : (warn ? "🟡" : "🔴"); }
+
+function updateHUD(m){
+    document.getElementById("hudFill").innerText = Math.round(Math.min(fillAmount,105));
+    document.getElementById("hudTemp").innerText = Math.round(temperature);
+    document.getElementById("hudLives").innerText = lives;
+    document.getElementById("hudScore").innerText = Math.round(score);
+
+    document.getElementById("moldName").innerText = m.name + " (" + (moldIndex+1) + "/3)";
+    document.getElementById("moldTarget").innerText = "Perfect: " + m.perfectMin + "-100% | Good: " + m.goodMin + "-" + (m.perfectMin-1) + "%";
+    document.getElementById("moldFill").style.width = Math.min(100, fillAmount) + "%";
+
+    stokeBtn.classList.toggle("disabled", stokeCooldown>0);
+    document.getElementById("stokeSub").innerText = stokeCooldown>0 ? Math.ceil(stokeCooldown)+"s" : "ready";
+}
+
+/* =====================
+   DRAW
+===================== */
+
+function getMouldRect(){
+    const width = Math.min(240, canvas.width*0.22);
+    const height = Math.min(440, canvas.height*0.6);
+    const x = canvas.width/2 - width/2;
+    const y = canvas.height/2 - height/2 - 10;
+    return {x,y,width,height};
+}
+
+function drawBackground(){
+    if(bg.complete && bg.naturalWidth>0){
+        const scale = Math.max(canvas.width/bg.width, canvas.height/bg.height);
+        const w = bg.width*scale, h = bg.height*scale;
+        ctx.drawImage(bg, canvas.width/2-w/2, canvas.height/2-h/2, w, h);
+    } else {
+        ctx.fillStyle = "#1a1410";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    ctx.fillStyle = "rgba(5,6,10,0.32)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function heatColor(){
+    if(temperature>700) return "#ff9f1c";
+    if(temperature>680) return "#ff7a1a";
+    if(temperature>650) return "#ff4d2e";
+    return "#8a2222";
+}
+
+function drawMould(){
+    if(state!=="playing" && state!=="success") return;
+    const m = MOLDS[Math.min(moldIndex, MOLDS.length-1)];
+    const {x,y,width,height} = getMouldRect();
+
+    // target zone bands (drawn first, liquid covers them as it rises)
+    const yFor = (pct)=> y + height - height*(pct/100);
+
+    ctx.fillStyle = "rgba(0,255,140,0.18)";
+    ctx.fillRect(x, yFor(100), width, yFor(m.perfectMin)-yFor(100));
+
+    ctx.fillStyle = "rgba(255,210,60,0.16)";
+    ctx.fillRect(x, yFor(m.perfectMin), width, yFor(m.goodMin)-yFor(m.perfectMin));
+
+    // liquid metal
+    const liquidHeight = height*(Math.min(fillAmount,100)/100);
+    ctx.fillStyle = heatColor();
+    if(holding || valveOpen>0.05){
+        ctx.shadowColor = heatColor();
+        ctx.shadowBlur = 22;
+    }
+    ctx.fillRect(x, y+height-liquidHeight, width, liquidHeight);
+    ctx.shadowBlur = 0;
+
+    // overflow spill effect
+    if(fillAmount>100){
+        const overflowPct = Math.min(1,(fillAmount-100)/5);
+        ctx.fillStyle = `rgba(255,100,20,${0.5+overflowPct*0.4})`;
+        ctx.fillRect(x-10, y-8, width+20, 10);
+    }
+
+    // mould outline
+    ctx.strokeStyle = "#e8e8e8";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(x,y,width,height);
+
+    // hazard stripe at the brim
+    ctx.fillStyle = "rgba(255,60,0,0.22)";
+    ctx.fillRect(x,y,width,36);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafcff";
+    ctx.font = "bold 15px Arial";
+    ctx.fillText(m.name, x+width/2, y-14);
+
+    ctx.font = "bold 22px Arial";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(Math.round(Math.min(fillAmount,105))+"%", x+width/2, y+height*0.5);
+
+    // pour stream from the ladle above
+    if(valveOpen>0.02){
+        const streamX = x+width/2;
+        const glow = 200+Math.sin(now_ms()*0.02)*55;
+        ctx.strokeStyle = `rgb(255,${Math.round(glow)},0)`;
+        ctx.lineWidth = 10*valveOpen+4;
+        ctx.beginPath();
+        ctx.moveTo(streamX, y-120);
+        ctx.lineTo(streamX, y+2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(streamX, y-130, 42, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255,150,0,0.35)";
+        ctx.fill();
+    }
+
+    // slag bubbles
+    bubbles.forEach(b=>{
+        const remain = 1 - b.t/b.life;
+        ctx.beginPath();
+        ctx.arc(b.x,b.y, IS_TOUCH?16:12, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(40,30,25,${0.55+0.35*Math.sin(b.t*10)})`;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,180,90,0.8)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // shrinking timeout ring
+        ctx.beginPath();
+        ctx.arc(b.x,b.y, (IS_TOUCH?16:12)+4, -Math.PI/2, -Math.PI/2 + remain*Math.PI*2);
+        ctx.strokeStyle = "#ffd24a";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    });
+
+    sparks.forEach(s=>{
+        ctx.globalAlpha = Math.max(0,s.life);
+        ctx.fillStyle = s.color || "yellow";
+        ctx.fillRect(s.x-2,s.y-2,4,4);
+        ctx.globalAlpha = 1;
+    });
+}
+
+function now_ms(){ return performance.now(); }
+
+function draw(){
+    ctx.save();
+    if(shakeTime>0){
+        const mag = Math.min(8, shakeTime/300*8);
+        ctx.translate((Math.random()-0.5)*mag, (Math.random()-0.5)*mag);
+    }
+    drawBackground();
+    drawMould();
+    ctx.restore();
+    requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* start on intro */
+resetRun();
+state = "intro";
+document.getElementById("introOverlay").classList.add("show");
+
+</script>
+</body>
+</html>

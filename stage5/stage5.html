@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Stage 5 - Dyno Test</title>
+
+<style>
+
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+
+html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    position:fixed;
+    overflow:hidden;
+    overscroll-behavior:none;
+    background:#0a0e16;
+    font-family:Arial, sans-serif;
+    -webkit-user-select:none;
+    user-select:none;
+    touch-action:none;
+}
+
+canvas{
+    display:block;
+    touch-action:none;
+}
+
+/* ===== Intro / result overlays ===== */
+
+.overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.82);
+    z-index:5000;
+    justify-content:center;
+    align-items:center;
+}
+
+.overlay.show{ display:flex; }
+
+.panelWrap{
+    position:relative;
+    width:800px;
+    max-width:92vw;
+}
+
+.panelWrap img.frame{
+    width:100%;
+    display:block;
+}
+
+.panelContent{
+    position:absolute;
+    top:12%;
+    left:17%;
+    right:17%;
+    bottom:14%;
+    text-align:center;
+    color:#eafcff;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:6px;
+}
+
+.panelContent h1{
+    margin:0 0 4px 0;
+    font-size:26px;
+    text-shadow:2px 2px 4px black;
+}
+
+.panelContent h2{
+    margin:0 0 8px 0;
+    font-size:17px;
+    color:#7fd8ff;
+    font-weight:600;
+}
+
+.panelContent p, .panelContent li{
+    font-size:13.5px;
+    line-height:1.4em;
+    margin:2px 0;
+}
+
+.panelContent ul{
+    text-align:left;
+    margin:6px auto;
+    padding-left:22px;
+    max-width:420px;
+}
+
+.bigBtn{
+    margin:14px auto 0 auto;
+    width:260px;
+    height:62px;
+    border:none;
+    border-radius:14px;
+    background:#00ff88;
+    color:#06210f;
+    font-size:22px;
+    font-weight:800;
+    cursor:pointer;
+    box-shadow:0 4px 0 #00a85c;
+}
+.bigBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 #00a85c; }
+
+.bigBtn.retry{ background:#ff5252; color:#3a0000; box-shadow:0 4px 0 #a10000; }
+.bigBtn.retry:active{ box-shadow:0 1px 0 #a10000; }
+
+.statLine{ font-size:15px; margin:2px 0; }
+.gradeLetter{ font-size:56px; font-weight:900; text-shadow:2px 2px 6px black; margin:2px 0; }
+
+/* ===== HUD ===== */
+
+#hud{
+    position:absolute;
+    top:16px;
+    left:16px;
+    background:rgba(8,14,22,0.68);
+    border:2px solid #2ea6ff;
+    padding:12px 16px;
+    border-radius:12px;
+    color:#eafcff;
+    font-size:17px;
+    line-height:1.5em;
+    z-index:20;
+    font-weight:600;
+    text-shadow:1px 1px 2px black;
+}
+
+#hud .k{ color:#7fd8ff; }
+
+#phaseBox{
+    position:absolute;
+    top:16px;
+    right:16px;
+    background:rgba(8,14,22,0.68);
+    border:2px solid #2ea6ff;
+    padding:12px 16px;
+    border-radius:12px;
+    color:#eafcff;
+    font-size:16px;
+    z-index:20;
+    min-width:200px;
+    text-shadow:1px 1px 2px black;
+}
+
+#phaseBox .bar{
+    width:100%;
+    height:12px;
+    background:#1b2735;
+    border-radius:6px;
+    overflow:hidden;
+    margin-top:6px;
+    border:1px solid #2ea6ff;
+}
+#phaseBox .fill{
+    height:100%;
+    width:0%;
+    background:#00ff88;
+    transition:width 0.15s linear;
+}
+
+#statusRow{
+    position:absolute;
+    top:110px;
+    right:16px;
+    display:flex;
+    gap:8px;
+    z-index:20;
+}
+.statusChip{
+    background:rgba(8,14,22,0.68);
+    border:2px solid #2ea6ff;
+    border-radius:10px;
+    padding:6px 10px;
+    color:#eafcff;
+    font-size:14px;
+    font-weight:700;
+    text-align:center;
+    min-width:56px;
+}
+
+#alertBanner{
+    position:absolute;
+    top:0;left:0;right:0;
+    text-align:center;
+    padding:14px 10px;
+    font-size:22px;
+    font-weight:900;
+    color:#fff;
+    background:rgba(200,20,20,0.85);
+    z-index:30;
+    display:none;
+    text-shadow:1px 1px 3px black;
+    letter-spacing:1px;
+}
+#alertBanner.show{ display:block; animation:flash 0.5s infinite; }
+@keyframes flash{ 0%,100%{ opacity:1;} 50%{ opacity:0.45;} }
+
+/* ===== Controls ===== */
+
+#controls{
+    position:absolute;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:14px;
+    z-index:20;
+    flex-wrap:wrap;
+    justify-content:center;
+    max-width:96vw;
+}
+
+.ctlBtn{
+    width:170px;
+    height:82px;
+    border:none;
+    border-radius:16px;
+    font-size:17px;
+    font-weight:800;
+    cursor:pointer;
+    color:#06210f;
+    box-shadow:0 5px 0 rgba(0,0,0,0.35);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    touch-action:none;
+}
+.ctlBtn:active{ transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,0.35); }
+.ctlBtn small{ font-size:11px; font-weight:600; opacity:0.75; }
+
+#upBtn{ background:#00ff88; }
+#downBtn{ background:#ffb400; }
+#coolantBtn{ background:#4ec8ff; }
+#oilBtn{ background:#c9a15a; }
+
+.ctlBtn.disabled{
+    background:#3a4552 !important;
+    color:#8fa2b3;
+    cursor:default;
+}
+
+body.touch #hud{ font-size:20px; padding:16px 20px; top:22px; left:22px; }
+body.touch #phaseBox{ font-size:18px; padding:16px 20px; top:22px; right:22px; min-width:230px; }
+body.touch #statusRow{ top:132px; right:22px; }
+body.touch .statusChip{ font-size:16px; padding:8px 14px; }
+body.touch .ctlBtn{ width:190px; height:96px; font-size:19px; }
+body.touch #alertBanner{ font-size:26px; padding:18px 10px; }
+
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="hud">
+<span class="k">RPM</span> <span id="hudRpm">0</span><br>
+<span class="k">TEMP</span> <span id="hudTemp">70</span>°C<br>
+<span class="k">OIL</span> <span id="hudOil">40</span> PSI<br>
+<span class="k">HEALTH</span> <span id="hudHealth">100</span>%
+</div>
+
+<div id="phaseBox">
+<div id="phaseName">IDLE TEST</div>
+<div id="phaseBand" style="font-size:13px;color:#9fd8ff;">Target: 900-1200 RPM</div>
+<div class="bar"><div class="fill" id="phaseFill"></div></div>
+</div>
+
+<div id="statusRow">
+<div class="statusChip" id="chipRpm">RPM 🟢</div>
+<div class="statusChip" id="chipTemp">TEMP 🟢</div>
+<div class="statusChip" id="chipOil">OIL 🟢</div>
+</div>
+
+<div id="alertBanner"></div>
+
+<div id="controls">
+<button class="ctlBtn" id="upBtn">THROTTLE +<small>hold</small></button>
+<button class="ctlBtn" id="downBtn">THROTTLE -<small>hold</small></button>
+<button class="ctlBtn" id="coolantBtn">VENT COOLANT<small id="coolantSub">ready</small></button>
+<button class="ctlBtn" id="oilBtn">OIL BOOST<small id="oilSub">ready</small></button>
+</div>
+
+<!-- INTRO -->
+<div class="overlay show" id="introOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="popup.png">
+        <div class="panelContent">
+            <h1>WORK ORDER #05</h1>
+
+            <h2>FINAL ENGINE VALIDATION</h2>
+
+                <p>The engine has successfully completed</p>
+                <p>manufacturing and is ready for testing.</p>
+
+            <ul>
+                <li>Idle Test: 900 - 1200 RPM</li>
+                <li>Cruise Test: 2500 - 3500 RPM</li>
+                <li>Power Test: 4200 - 4800 RPM</li>
+            </ul>
+
+            <p>
+            Monitor RPM, temperature and
+            oil pressure throughout the test.
+            </p>
+
+            <p>
+            <strong>
+            Complete all phases to approve
+            the engine for production.
+            </strong>
+            </p>
+
+            <button class="bigBtn" id="beginBtn">
+            START TEST
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- PASSED -->
+<div class="overlay" id="passedOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="test_passed.png">
+        <div class="panelContent">
+            <h1>✅ TEST PASSED</h1>
+            <p>Production journey complete.</p>
+            <p>Raw Material → Casting → Machining → Assembly → Testing</p>
+        </div>
+    </div>
+</div>
+
+<!-- CERTIFICATE -->
+<div class="overlay" id="certOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="production_certificate.png">
+        <div class="panelContent" style="top:30%;bottom:16%;">
+            <div class="gradeLetter" id="certGrade">S</div>
+            <div class="statLine" id="certScore">Score: 0</div>
+            <button class="bigBtn" id="nextStageBtn">GET YOUR CERTIFICATE</button>
+        </div>
+    </div>
+</div>
+
+<!-- FAILED -->
+<div class="overlay" id="failedOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="test_failed.png">
+        <div class="panelContent" style="top:20%;">
+            <h1 id="failReason">TEST FAILED</h1>
+            <button class="bigBtn retry" id="retryBtn">RETRY TEST</button>
+        </div>
+    </div>
+</div>
+
+<!-- CRITICAL FLASH -->
+<img id="criticalFlash" src="warning_terminal.png" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    opacity:0.28;
+    z-index:4000;
+    pointer-events:none;
+">
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", ()=>setTimeout(resize,300));
+
+/* =====================
+   KIOSK / TOUCHSCREEN GUARDS
+===================== */
+
+const IS_TOUCH = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+if(IS_TOUCH) document.body.classList.add("touch");
+
+document.addEventListener("gesturestart", e=>e.preventDefault());
+document.addEventListener("gesturechange", e=>e.preventDefault());
+document.addEventListener("contextmenu", e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+    const now = Date.now();
+    if(now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+}, {passive:false});
+
+document.addEventListener("touchmove", (e)=>{
+    // allow only if the target is meant to scroll (none are) - block all
+    e.preventDefault();
+}, {passive:false});
+
+let lastInteraction = performance.now();
+function markInteraction(){ lastInteraction = performance.now(); }
+["mousedown","touchstart","keydown"].forEach(evt=>{
+    window.addEventListener(evt, markInteraction, {passive:true});
+});
+
+/* =====================
+   ASSETS
+===================== */
+
+function loadImg(src){ const i = new Image(); i.src = src; return i; }
+
+const bg = loadImg("engine_test_room.png");
+const engineImg = loadImg("final_engine.png");
+const rpmGaugeImg = loadImg("rpm_gauge.png");
+const tempGaugeImg = loadImg("temp_gauge.png");
+const oilGaugeImg = loadImg("oil_gauge.png");
+
+/* =====================
+   GAME DATA
+===================== */
+
+const PHASES = [
+    { name:"IDLE TEST",   min:900,  max:1200, need:5  },
+    { name:"CRUISE TEST", min:2500, max:3500, need:8  },
+    { name:"POWER TEST",  min:4200, max:4800, need:6  }
+];
+
+const COOLANT_COOLDOWN = 6;   // seconds
+const OIL_COOLDOWN = 6;       // seconds
+
+let rpm, temperature, oilPressure, health;
+let throttleUp, throttleDown;
+let phase, phaseTimer;
+let coolantCooldown, oilCooldown;
+let warnedLate; // tracks whether current excursion already penalized (for scoring)
+let score, offBandTime, totalTime;
+let state; // "playing" | "passed" | "certificate" | "failed"
+let criticalFlashOn = false;
+
+function resetGame(){
+    rpm = 800;
+    temperature = 70;
+    oilPressure = 40;
+    health = 100;
+    throttleUp = false;
+    throttleDown = false;
+    phase = 0;
+    phaseTimer = 0;
+    coolantCooldown = 0;
+    oilCooldown = 0;
+    score = 1000;
+    offBandTime = 0;
+    totalTime = 0;
+    state = "playing";
+    criticalFlashOn = false;
+    document.getElementById("criticalFlash").style.display = "none";
+    hideAllOverlays();
+}
+
+function hideAllOverlays(){
+    ["introOverlay","passedOverlay","certOverlay","failedOverlay"].forEach(id=>{
+        document.getElementById(id).classList.remove("show");
+    });
+}
+
+/* =====================
+   CONTROLS
+===================== */
+
+function bindHold(el, onDown, onUp){
+    el.addEventListener("mousedown", (e)=>{ e.preventDefault(); markInteraction(); onDown(); });
+    el.addEventListener("mouseup",   (e)=>{ e.preventDefault(); onUp(); });
+    el.addEventListener("mouseleave",(e)=>{ onUp(); });
+    el.addEventListener("touchstart",(e)=>{ e.preventDefault(); markInteraction(); onDown(); }, {passive:false});
+    el.addEventListener("touchend",  (e)=>{ e.preventDefault(); onUp(); }, {passive:false});
+    el.addEventListener("touchcancel",(e)=>{ onUp(); }, {passive:false});
+}
+
+const upBtn = document.getElementById("upBtn");
+const downBtn = document.getElementById("downBtn");
+const coolantBtn = document.getElementById("coolantBtn");
+const oilBtn = document.getElementById("oilBtn");
+
+bindHold(upBtn, ()=>{ throttleUp = true; }, ()=>{ throttleUp = false; });
+bindHold(downBtn, ()=>{ throttleDown = true; }, ()=>{ throttleDown = false; });
+
+function tapButton(el, fn){
+    el.addEventListener("click", (e)=>{ e.preventDefault(); markInteraction(); fn(); });
+    el.addEventListener("touchend", (e)=>{ e.preventDefault(); markInteraction(); fn(); }, {passive:false});
+}
+
+tapButton(coolantBtn, ()=>{
+    if(state!=="playing" || coolantCooldown>0) return;
+    temperature -= 22;
+    coolantCooldown = COOLANT_COOLDOWN;
+});
+
+tapButton(oilBtn, ()=>{
+    if(state!=="playing" || oilCooldown>0) return;
+    oilPressure += 18;
+    oilCooldown = OIL_COOLDOWN;
+});
+
+document.getElementById("beginBtn").addEventListener("click", ()=>{
+    resetGame();
+});
+
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+    resetGame();
+    document.getElementById("introOverlay").classList.remove("show");
+});
+
+document.getElementById("nextStageBtn").addEventListener("click", ()=>{
+
+    window.location.href = "../certificate_page/certificate.html";
+});
+
+window.addEventListener("keydown", (e)=>{
+    if(state!=="playing") return;
+    if(e.code==="ArrowUp") throttleUp = true;
+    if(e.code==="ArrowDown") throttleDown = true;
+    if(e.code==="KeyC") coolantBtn.click();
+    if(e.code==="KeyO") oilBtn.click();
+});
+window.addEventListener("keyup", (e)=>{
+    if(e.code==="ArrowUp") throttleUp = false;
+    if(e.code==="ArrowDown") throttleDown = false;
+});
+
+/* =====================
+   IDLE / ATTRACT MODE
+===================== */
+
+function checkIdle(now){
+    const idle = now - lastInteraction;
+    if(state==="failed"){
+        if(idle > 9000) backToIntro();
+    } else if(document.getElementById("certOverlay").classList.contains("show")){
+        if(idle > 12000) backToIntro();
+    } else if(state==="playing" && idle > 60000){
+        backToIntro();
+    }
+}
+
+function backToIntro(){
+    resetGame();
+    state = "intro";
+    document.getElementById("introOverlay").classList.add("show");
+    lastInteraction = performance.now();
+}
+
+/* =====================
+   CORE LOOP
+===================== */
+
+let lastTime = performance.now();
+
+function fail(reason){
+    if(state!=="playing") return;
+    state = "failed";
+    document.getElementById("failReason").innerText = reason;
+    document.getElementById("failedOverlay").classList.add("show");
+    setCriticalFlash(false);
+}
+
+function pass(){
+    if(state!=="playing") return;
+    state = "passed";
+    document.getElementById("passedOverlay").classList.add("show");
+    setCriticalFlash(false);
+    setTimeout(()=>{
+        document.getElementById("passedOverlay").classList.remove("show");
+        showCertificate();
+    }, 1900);
+}
+
+function showCertificate(){
+
+    state = "certificate";
+
+    const pct = Math.max(
+        0,
+        Math.min(
+            1,
+            score/1000
+        )
+    );
+
+    let grade = "C";
+
+    if(pct >= 0.9)
+        grade = "S";
+
+    else if(pct >= 0.75)
+        grade = "A";
+
+    else if(pct >= 0.55)
+        grade = "B";
+
+    localStorage.setItem(
+        "finalScore",
+        Math.round(score)
+    );
+
+    localStorage.setItem(
+        "finalGrade",
+        grade
+    );
+
+    document
+    .getElementById("certGrade")
+    .innerText = grade;
+
+    document
+    .getElementById("certScore")
+    .innerText =
+    "Score: " +
+    Math.round(score);
+
+    document
+    .getElementById("certOverlay")
+    .classList.add("show");
+}
+
+function setCriticalFlash(on){
+    criticalFlashOn = on;
+    document.getElementById("criticalFlash").style.display = on ? "block" : "none";
+}
+
+function setAlert(text){
+    const el = document.getElementById("alertBanner");
+    if(text){
+        el.innerText = text;
+        el.classList.add("show");
+    } else {
+        el.classList.remove("show");
+    }
+}
+
+function update(now){
+    const dt = Math.min(0.05, (now-lastTime)/1000);
+    lastTime = now;
+
+    checkIdle(now);
+
+    if(state==="playing"){
+        totalTime += dt;
+
+        // throttle physics: hold to ramp, natural drift back to idle baseline
+        const ACCEL = 1400; // rpm/sec while held
+        const DRIFT = 220;  // rpm/sec natural decay toward baseline
+
+        if(throttleUp) rpm += ACCEL*dt;
+        if(throttleDown) rpm -= ACCEL*dt*1.3;
+
+        if(!throttleUp && !throttleDown){
+            if(rpm > 900) rpm -= DRIFT*dt;
+            else if(rpm < 800) rpm += DRIFT*dt*0.6;
+        }
+
+        rpm = Math.max(700, Math.min(6000, rpm));
+
+        // temperature eases toward a target derived from rpm (lag = inertia)
+        const targetTemp = 70 + (rpm-800)/42;
+        temperature += (targetTemp - temperature) * dt * 0.6;
+
+        // oil eases toward rpm-derived target, plus gentle noise
+        const targetOil = 38 + (rpm-800)/140;
+        oilPressure += (targetOil - oilPressure) * dt * 0.8;
+        oilPressure += Math.sin(now*0.002 + 1.7)*0.15;
+
+        if(coolantCooldown>0) coolantCooldown = Math.max(0, coolantCooldown-dt);
+        if(oilCooldown>0) oilCooldown = Math.max(0, oilCooldown-dt);
+
+        const cp = PHASES[phase];
+
+        if(rpm>=cp.min && rpm<=cp.max){
+            phaseTimer += dt;
+        } else {
+            const bandSpan = cp.max-cp.min;
+            const nearMin = cp.min - bandSpan*0.15;
+            const nearMax = cp.max + bandSpan*0.15;
+            if(rpm>=nearMin && rpm<=nearMax){
+                phaseTimer += dt*0.35; // partial credit near the band
+            } else {
+                phaseTimer = Math.max(0, phaseTimer - dt*0.5);
+                offBandTime += dt;
+                score -= dt*6;
+            }
+        }
+
+        if(phaseTimer >= cp.need){
+            phase++;
+            phaseTimer = 0;
+            score += 60;
+            if(phase >= PHASES.length){
+                pass();
+            }
+        }
+
+        // damage & warnings
+        let critical = false;
+
+        if(temperature > 120){
+            health -= 9*dt;
+            score -= dt*20;
+            critical = true;
+        } else if(temperature > 105){
+            score -= dt*4;
+        }
+
+        if(oilPressure < 25){
+            health -= 11*dt;
+            score -= dt*20;
+            critical = true;
+        } else if(oilPressure < 32){
+            score -= dt*4;
+        }
+
+        if(rpm > 5200){
+            health -= 10*dt;
+            score -= dt*20;
+            critical = true;
+        }
+
+        health = Math.max(0, Math.min(100, health));
+
+        setCriticalFlash(critical && health<45);
+
+        // alert banner logic
+        if(temperature > 112){
+            setAlert("⚠ TEMP CRITICAL — VENT COOLANT!");
+        } else if(oilPressure < 28){
+            setAlert("⚠ OIL LOW — BOOST PRESSURE!");
+        } else if(rpm > 5000){
+            setAlert("⚠ OVER-REV — EASE OFF!");
+        } else {
+            setAlert(null);
+        }
+
+        if(health<=0){
+            fail("ENGINE DAMAGE — HEALTH DEPLETED");
+        }
+
+        updateHUD(cp);
+    }
+
+    requestAnimationFrame(update);
+}
+requestAnimationFrame(update);
+
+function statusEmoji(good, warn){
+    return good ? "🟢" : (warn ? "🟡" : "🔴");
+}
+
+function updateHUD(cp){
+    document.getElementById("hudRpm").innerText = Math.round(rpm);
+    document.getElementById("hudTemp").innerText = Math.round(temperature);
+    document.getElementById("hudOil").innerText = Math.round(oilPressure);
+    document.getElementById("hudHealth").innerText = Math.round(health);
+
+    document.getElementById("phaseName").innerText = cp.name + " (" + (phase+1) + "/3)";
+    document.getElementById("phaseBand").innerText = "Target: " + cp.min + "-" + cp.max + " RPM";
+    document.getElementById("phaseFill").style.width = Math.min(100, (phaseTimer/cp.need)*100) + "%";
+
+    document.getElementById("chipRpm").innerText = "RPM " + statusEmoji(rpm>=cp.min-150 && rpm<=cp.max+150, rpm<=cp.max+400);
+    document.getElementById("chipTemp").innerText = "TEMP " + statusEmoji(temperature<=105, temperature<=118);
+    document.getElementById("chipOil").innerText = "OIL " + statusEmoji(oilPressure>=32, oilPressure>=25);
+
+    coolantBtn.classList.toggle("disabled", coolantCooldown>0);
+    oilBtn.classList.toggle("disabled", oilCooldown>0);
+    document.getElementById("coolantSub").innerText = coolantCooldown>0 ? Math.ceil(coolantCooldown)+"s" : "ready";
+    document.getElementById("oilSub").innerText = oilCooldown>0 ? Math.ceil(oilCooldown)+"s" : "ready";
+}
+
+/* =====================
+   DRAW
+===================== */
+
+function drawCover(img,x,y,w,h){
+    if(img.complete && img.naturalWidth>0) ctx.drawImage(img,x,y,w,h);
+}
+
+function drawBackground(){
+    if(bg.complete && bg.naturalWidth>0){
+        const scale = Math.max(canvas.width/bg.width, canvas.height/bg.height);
+        const w = bg.width*scale, h = bg.height*scale;
+        ctx.drawImage(bg, canvas.width/2-w/2, canvas.height/2-h/2, w, h);
+    } else {
+        ctx.fillStyle = "#121824";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    ctx.fillStyle = "rgba(5,10,18,0.30)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawEngine(){
+    const w = Math.min(420, canvas.width*0.34);
+    const h = w;
+    const x = canvas.width/2 - w/2;
+    const y = canvas.height/2 - h/2 - 30;
+
+    const vibration = rpm>1500 ? Math.sin(performance.now()*0.05)*Math.min(6, (rpm-1500)/600) : 0;
+
+    drawCover(engineImg, x+vibration, y, w, h);
+}
+
+function ringColor(status){
+    return status==="good" ? "#00ff8c" : status==="warn" ? "#ffcc33" : "#ff4d4d";
+}
+
+function drawGauge(img, cx, cy, size, value, min, max, status){
+    drawCover(img, cx-size/2, cy-size/2, size, size);
+
+    // indicator dot travels around the rim, mapped from value
+    const t = Math.max(0, Math.min(1, (value-min)/(max-min)));
+    const angle = (-220 + t*260) * Math.PI/180; // sweep across the bottom arc
+    const r = size*0.46;
+    const dx = cx + Math.cos(angle)*r;
+    const dy = cy + Math.sin(angle)*r;
+
+    ctx.beginPath();
+    ctx.arc(dx,dy,size*0.045,0,Math.PI*2);
+    ctx.fillStyle = ringColor(status);
+    ctx.shadowColor = ringColor(status);
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+}
+
+function drawGauges(){
+    const size = Math.min(150, canvas.width*0.14);
+    const y = canvas.height - size/2 - 24;
+    const gap = size + 26;
+    const startX = canvas.width/2 - gap;
+
+    const rpmStatus = rpm<=4800 ? "good" : rpm<=5200 ? "warn" : "bad";
+    const tempStatus = temperature<=105 ? "good" : temperature<=118 ? "warn" : "bad";
+    const oilStatus = oilPressure>=32 ? "good" : oilPressure>=25 ? "warn" : "bad";
+
+    drawGauge(rpmGaugeImg, startX, y, size, rpm, 0, 6000, rpmStatus);
+    drawGauge(tempGaugeImg, startX+gap, y, size, temperature, 60, 140, tempStatus);
+    drawGauge(oilGaugeImg, startX+gap*2, y, size, oilPressure, 0, 60, oilStatus);
+
+    ctx.textAlign = "center";
+    ctx.font = "bold 13px Arial";
+    ctx.fillStyle = "#eafcff";
+    ctx.fillText("RPM", startX, y+size/2+18);
+    ctx.fillText("TEMP", startX+gap, y+size/2+18);
+    ctx.fillText("OIL", startX+gap*2, y+size/2+18);
+}
+
+function draw(now){
+    drawBackground();
+    drawEngine();
+    drawGauges();
+    requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* start in intro state, waiting for begin */
+state = "intro";
+resetGame();
+state = "intro";
+document.getElementById("introOverlay").classList.add("show");
+
+</script>
+</body>
+</html>

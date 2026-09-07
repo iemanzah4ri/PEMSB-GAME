@@ -224,7 +224,7 @@ body.touch #card{ padding:20px 32px; }
    Where "Return to Menu" should go.
    Adjust this path to match your project's folder structure.
 ===================== */
-
+const MENU_URL = "https://iemanzah4ri.github.io/PEMSB-GAME/index.html";
 /* =====================
    KIOSK / TOUCHSCREEN GUARDS
 ===================== */
@@ -265,46 +265,20 @@ setInterval(()=>{
 
 const params = new URLSearchParams(window.location.search);
 
-const storedScore =
-localStorage.getItem(
-    "finalScore"
-);
+const storedScore = localStorage.getItem("finalScore");
+const storedGrade = localStorage.getItem("finalGrade");
+const storedSerial = localStorage.getItem("finalSerial");
 
-const storedGrade =
-localStorage.getItem(
-    "finalGrade"
-);
+const grade = storedGrade || "A";
+const serial = storedSerial || params.get("serial") ||
+    ("ENG-" + new Date().getFullYear() + "-" + String(Date.now()).slice(-6));
 
-const grade =
-storedGrade || "A";
-
-document
-.getElementById("gradeMedallion")
-.innerText =
-grade;
-
-document
-.getElementById("scoreVal")
-.innerText =
-storedScore || "0";
-
-document
-.getElementById("dateVal")
-.innerText =
-new Date()
-.toLocaleDateString(
-undefined,
-{
-year:"numeric",
-month:"long",
-day:"numeric"
-}
-);
-
-document
-.getElementById("serialVal")
-.innerText =
-serial;
+document.getElementById("gradeMedallion").innerText = grade;
+document.getElementById("scoreVal").innerText = storedScore || "0";
+document.getElementById("dateVal").innerText = new Date().toLocaleDateString(undefined, {
+    year:"numeric", month:"long", day:"numeric"
+});
+document.getElementById("serialVal").innerText = serial;
 const gradeColors = {
     S:["#fff3c4","#ffd24a","#a8721a"],
     A:["#e9fff2","#7fffb0","#1f9e5a"],
@@ -320,7 +294,7 @@ document.getElementById("gradeMedallion").style.background =
 ===================== */
 
 function goToMenu(){
-    window.location.href = "../index.html";
+    window.location.href = MENU_URL;
 }
 
 document.getElementById("menuBtn").addEventListener("click", (e)=>{

@@ -1,15 +1,10 @@
 {
   "name": "PEMSB Engine Game",
   "short_name": "PEMSB Game",
+  "id": "./",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
+  "background_color": "#0a0e16",
+  "theme_color": "#00d2ff"
 }

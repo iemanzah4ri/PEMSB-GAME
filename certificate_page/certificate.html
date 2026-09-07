@@ -224,7 +224,6 @@ body.touch #card{ padding:20px 32px; }
    Where "Return to Menu" should go.
    Adjust this path to match your project's folder structure.
 ===================== */
-const MENU_URL = "index.html";
 
 /* =====================
    KIOSK / TOUCHSCREEN GUARDS
@@ -321,7 +320,7 @@ document.getElementById("gradeMedallion").style.background =
 ===================== */
 
 function goToMenu(){
-    window.location.href = MENU_URL;
+    window.location.href = "../index.html";
 }
 
 document.getElementById("menuBtn").addEventListener("click", (e)=>{

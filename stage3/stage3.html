@@ -154,11 +154,12 @@ function resetToStart(){
     state = "start";
     dragTool = null;
     gauge.active = false;
+    stopDrillSound();
     lastInteraction = performance.now();
 }
 
 /* =====================
-   ASSETS
+   ASSETS & AUDIO
 ===================== */
 
 function loadImg(src){
@@ -173,6 +174,22 @@ const engineImg  = loadImg("engine_block.png");
 const drillImg   = loadImg("drill_tool.png");
 const millImg    = loadImg("mill_tool.png");
 const popupImg   = loadImg("popup.png");
+
+const drillSound = new Audio("drilling.mp3");
+drillSound.preload = "auto";
+drillSound.volume = 0.9;
+drillSound.loop = true;
+
+function startDrillSound(){
+    drillSound.currentTime = 0;
+    const playPromise = drillSound.play();
+    if(playPromise) playPromise.catch(err => console.log("Audio play blocked:", err));
+}
+
+function stopDrillSound(){
+    drillSound.pause();
+    drillSound.currentTime = 0;
+}
 
 /* =====================
    GAME CONSTANTS
@@ -219,8 +236,7 @@ let gauge = {
     lastGradeTime:0
 };
 
-// Zone sizes as a fraction of gauge width, so difficulty stays
-// consistent whether the gauge is small (desktop) or large (kiosk).
+// Zone sizes as a fraction of gauge width
 const GAUGE_PERFECT_RATIO = 0.058;
 const GAUGE_GOOD_RATIO = 0.158;
 
@@ -232,7 +248,7 @@ const toolSlots = {
     mill:  { x:0, y:0, size:96, home:{x:0,y:0} }
 };
 
-// Bigger hit targets everywhere on touchscreens (fingers aren't cursors)
+// Bigger hit targets everywhere on touchscreens
 const TARGET_HIT_RADIUS = IS_TOUCH ? 60 : 42;
 
 let dragTool = null; // {type, x, y, size, offsetX, offsetY}
@@ -327,7 +343,7 @@ function pointerPos(e){
 }
 
 function insideToolSlot(px,py,slot){
-    const pad = IS_TOUCH ? 16 : 0; // generous margin so a fingertip still registers
+    const pad = IS_TOUCH ? 16 : 0;
     return px>=slot.home.x-slot.size/2-pad && px<=slot.home.x+slot.size/2+pad &&
            py>=slot.home.y-slot.size/2-pad && py<=slot.home.y+slot.size/2+pad;
 }
@@ -340,24 +356,17 @@ function onPointerDown(e){
         return;
     }
     if(state==="gameover"){
-
-    if(clickedStartButton(p))
-        restartGame();
-
-    return;
-}
-
-if(state==="result"){
-
-    if(clickedStartButton(p)){
-
-        window.location.href =
-        "../stage4/stage4.html";
-
+        if(clickedStartButton(p)) restartGame();
+        return;
     }
 
-    return;
-}
+    if(state==="result"){
+        if(clickedStartButton(p)){
+            window.location.href = "../stage4/stage4.html";
+        }
+        return;
+    }
+    
     if(state==="aiming"){
         strike();
         return;
@@ -437,18 +446,8 @@ window.addEventListener("keydown", (e)=>{
    GAME FLOW
 ===================== */
 
-function requestKioskFullscreen(){
-    // Best-effort: many kiosk browsers already run fullscreen/locked down,
-    // but this covers the case where a user gesture is required.
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if(req && !document.fullscreenElement){
-        try{ req.call(el).catch(()=>{}); } catch(err){ /* ignore */ }
-    }
-}
-
 function startGame(){
-    if(IS_TOUCH) requestKioskFullscreen();
+    stopDrillSound();
     score = 0;
     lives = MAX_LIVES;
     combo = 0;
@@ -461,6 +460,11 @@ function restartGame(){ startGame(); }
 
 function beginAiming(target){
     activeTargetIndex = target.index;
+
+    if(target.type === TOOL_TYPES.DRILL){
+        startDrillSound();
+    }
+
     state = "aiming";
     gauge.active = true;
     gauge.startTime = performance.now();
@@ -471,6 +475,9 @@ function beginAiming(target){
 function strike(){
     const t = targets[activeTargetIndex];
     if(!t) return;
+
+    // Always stop the drilling sound upon strike/tap action
+    stopDrillSound();
 
     const elapsed = performance.now() - gauge.startTime;
     const center = gauge.width/2;
@@ -518,6 +525,7 @@ function strike(){
 }
 
 function triggerMiss(x,y,label){
+    stopDrillSound();
     lives--;
     combo = 0;
     shakeTime = 260;
@@ -532,11 +540,13 @@ function triggerMiss(x,y,label){
 }
 
 function finishGame(){
+    stopDrillSound();
     state = "result";
 }
 
 /* =====================
-   UI HELPERS (start button rect) =====================*/
+   UI HELPERS
+===================== */
 
 function startButtonRect(){
     const w = IS_TOUCH ? 280 : 220;
@@ -629,7 +639,6 @@ function drawEngine(){
         ctx.fillStyle = t.type===TOOL_TYPES.DRILL ? "#00ff8c" : "#ffb400";
         ctx.fill();
 
-        // small icon hint above target
         ctx.font = "11px Arial";
         ctx.fillStyle = "rgba(255,255,255,0.85)";
         ctx.textAlign = "center";
@@ -692,27 +701,22 @@ function drawGauge(){
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // track
     ctx.fillStyle = "#20303f";
     ctx.fillRect(x,y,w,h);
 
     const center = w/2;
 
-    // miss zone
     ctx.fillStyle = "rgba(255,70,70,0.35)";
     ctx.fillRect(x,y,w,h);
 
-    // good zone
     const goodHalf = w*GAUGE_GOOD_RATIO;
     ctx.fillStyle = "rgba(80,190,255,0.55)";
     ctx.fillRect(x+center-goodHalf,y,goodHalf*2,h);
 
-    // perfect zone
     const perfHalf = w*GAUGE_PERFECT_RATIO;
     ctx.fillStyle = "rgba(0,255,140,0.85)";
     ctx.fillRect(x+center-perfHalf,y,perfHalf*2,h);
 
-    // needle
     const elapsed = performance.now() - gauge.startTime;
     const pos = center + Math.sin(elapsed*gauge.speed) * (center-10);
     ctx.fillStyle = "#ffffff";
@@ -757,7 +761,6 @@ function drawModal(title, lines, buttonLabel){
     const y = canvas.height/2 - size/2;
     drawCover(popupImg, x, y, size, size);
 
-    // blank inner area roughly 24%-75% x, 15%-78% y of the square image
     const cx = x + size*0.5;
     let cy = y + size*0.22;
 
@@ -815,44 +818,25 @@ function draw(now){
     }
 
     if(state==="start"){
-
-    drawModal(
-
-        "WORK ORDER #03",
-
-        [
-
-        "CNC MACHINING OPERATION",
-
-        "",
-
-        "The engine casting has been approved",
-
-        "and is ready for precision machining.",
-
-        "",
-
-        "• Use the correct cutting tool",
-
-        "• Complete all machining operations",
-
-        "• Time the machining process accurately",
-
-        "• Avoid production errors",
-
-        "",
-
-        "Target: Achieve the highest",
-
-        "quality grade possible."
-
-        ],
-
-        "BEGIN MACHINING"
-
-    );
-
-}
+        drawModal(
+            "WORK ORDER #03",
+            [
+                "CNC MACHINING OPERATION",
+                "",
+                "The engine casting has been approved",
+                "and is ready for precision machining.",
+                "",
+                "• Use the correct cutting tool",
+                "• Complete all machining operations",
+                "• Time the machining process accurately",
+                "• Avoid production errors",
+                "",
+                "Target: Achieve the highest",
+                "quality grade possible."
+            ],
+            "BEGIN MACHINING"
+        );
+    }
 
     if(state==="result"){
         drawModal("MACHINING COMPLETE",

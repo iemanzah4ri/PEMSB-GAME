@@ -354,11 +354,6 @@ function markInteraction(){ lastInteraction = performance.now(); }
 function loadImg(src){ const i = new Image(); i.src = src; return i; }
 const bg = loadImg("stage2_background.png");
 
-function enterFullscreen(){
-    if(document.fullscreenElement || !document.documentElement.requestFullscreen) return;
-    document.documentElement.requestFullscreen().catch(()=>{});
-}
-
 /* =====================
    GAME DATA
 ===================== */
@@ -438,11 +433,9 @@ tapButton(stokeBtn, ()=>{
 });
 
 document.getElementById("beginBtn").addEventListener("click", ()=>{
-    enterFullscreen();
     resetRun();
 });
 document.getElementById("retryBtn").addEventListener("click", ()=>{
-    enterFullscreen();
     resetRun();
     document.getElementById("introOverlay").classList.remove("show");
 });

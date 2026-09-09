@@ -242,6 +242,55 @@ new Image();
 plasticImg.src =
 "plastic.png";
 
+const backgroundSound =
+new Audio("stage1soundtrack.mp3");
+
+backgroundSound.preload = "auto";
+backgroundSound.loop = true;
+backgroundSound.volume = 0.35;
+
+let audioContext = null;
+
+function startBackgroundSound(){
+    if(!audioContext){
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    if(audioContext.state === "suspended"){
+        audioContext.resume();
+    }
+
+    backgroundSound.currentTime = 0;
+    backgroundSound.play().catch(error => {
+        console.error("Stage 1 soundtrack could not play:", error);
+    });
+}
+
+function playCollectSound(type){
+    if(!audioContext){
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    if(audioContext.state === "suspended"){
+        audioContext.resume();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+    const isAluminium = type === "aluminium";
+
+    oscillator.type = isAluminium ? "sine" : "square";
+    oscillator.frequency.setValueAtTime(isAluminium ? 880 : 180, now);
+    oscillator.frequency.exponentialRampToValueAtTime(isAluminium ? 1320 : 90, now + 0.12);
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.12);
+}
+
 /* ====================
    MATERIALS
 ==================== */
@@ -355,6 +404,8 @@ function collect(x,y){
             score +=
             material.score;
 
+            playCollectSound(material.type);
+
             if(
                 material.type ===
                 "aluminium"
@@ -424,17 +475,7 @@ document
 .addEventListener(
     "click",
 e=>{
-    if(
-        document.documentElement
-        .requestFullscreen
-    ){
-
-        document
-        .documentElement
-        .requestFullscreen();
-
-    }
-
+    startBackgroundSound();
     document
     .getElementById("introPopup")
     .style.display =

@@ -187,6 +187,7 @@
     </head>
 
     <body>
+        <audio id="menuMusic" src="mainmenu.mp3" autoplay loop preload="auto"></audio>
         <div class="menu-container">
             <h1>ENGINE LIFE CYCLE</h1>
             <div class="subtitle">
@@ -252,9 +253,9 @@
     </div>
 
 
-    <div class="stage-card" onclick ="window.location='stage5/stage5.html'">
+    <div class="stage-card" onclick ="window.location='stage5new/stage5.html'">
 
-        <img src="testing.png" alt="testing">
+        <img src="stage5.png" alt="Stage 5">
 
         <div class="stage-label">
 
@@ -274,5 +275,15 @@
                 PEMSB Engine Storytelling Game
             </div>
         </div>
+        <script>
+            const menuMusic = document.getElementById("menuMusic");
+            menuMusic.play().catch(() => {
+                const startMenuMusic = () => {
+                    menuMusic.play().catch(error => console.error("Unable to play menu music:", error));
+                };
+                document.addEventListener("pointerdown", startMenuMusic, { once: true });
+                document.addEventListener("keydown", startMenuMusic, { once: true });
+            });
+        </script>
     </body>
 </html>

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Stage 5 - Final Road Test</title>
+
+<style>
+
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+
+html, body{
+    margin:0; padding:0; width:100%; height:100%;
+    position:fixed; overflow:hidden; overscroll-behavior:none;
+    background:#0a0e16; font-family:Arial, sans-serif;
+    -webkit-user-select:none; user-select:none; touch-action:none;
+}
+
+canvas{ display:block; touch-action:none; }
+
+/* ===== Intro / result overlays (same pattern as the rest of the kiosk) ===== */
+
+.overlay{
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.82); z-index:5000;
+    justify-content:center; align-items:center;
+}
+.overlay.show{ display:flex; }
+
+.panelWrap{ position:relative; width:800px; max-width:92vw; }
+.panelWrap img.frame{ width:100%; display:block; }
+
+.panelContent{
+    position:absolute; top:12%; left:17%; right:17%; bottom:14%;
+    text-align:center; color:#eafcff;
+    display:flex; flex-direction:column; justify-content:center; gap:6px;
+}
+.panelContent h1{ margin:0 0 4px 0; font-size:26px; text-shadow:2px 2px 4px black; }
+.panelContent h2{ margin:0 0 8px 0; font-size:17px; color:#7fd8ff; font-weight:600; }
+.panelContent p, .panelContent li{ font-size:13.5px; line-height:1.4em; margin:2px 0; }
+.panelContent ul{ text-align:left; margin:6px auto; padding-left:22px; max-width:420px; }
+
+.gradeLetter{ font-size:56px; font-weight:900; text-shadow:2px 2px 6px black; margin:2px 0; }
+
+.bigBtn{
+    margin:14px auto 0 auto; width:260px; height:62px;
+    border:none; border-radius:14px;
+    background:#00ff88; color:#06210f;
+    font-size:22px; font-weight:800; cursor:pointer;
+    box-shadow:0 4px 0 #00a85c; touch-action:none;
+}
+.bigBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 #00a85c; }
+.bigBtn.retry{ background:#ff5252; color:#3a0000; box-shadow:0 4px 0 #a10000; }
+.bigBtn.retry:active{ box-shadow:0 1px 0 #a10000; }
+
+/* ===== HUD ===== */
+
+#hud{
+    position:absolute; top:16px; left:16px;
+    background:rgba(8,14,22,0.68); border:2px solid #2ea6ff;
+    padding:12px 16px; border-radius:12px;
+    color:#eafcff; font-size:17px; line-height:1.5em; z-index:20;
+    font-weight:600; text-shadow:1px 1px 2px black;
+}
+#hud .k{ color:#7fd8ff; }
+
+#progressBox{
+    position:absolute; top:16px; right:16px;
+    background:rgba(8,14,22,0.68); border:2px solid #2ea6ff;
+    padding:12px 16px; border-radius:12px;
+    color:#eafcff; font-size:16px; z-index:20; min-width:200px;
+    text-shadow:1px 1px 2px black;
+}
+#progressBox .bar{
+    width:100%; height:12px; background:#1b2735; border-radius:6px;
+    overflow:hidden; margin-top:6px; border:1px solid #2ea6ff;
+}
+#progressBox .fill{ height:100%; width:0%; background:#00ff88; transition:width 0.15s linear; }
+
+/* ===== Touch controls ===== */
+
+#controls{
+    position:absolute; bottom:26px; left:0; right:0;
+    display:flex; justify-content:space-between; padding:0 26px;
+    z-index:20; pointer-events:none;
+}
+.laneBtn{
+    pointer-events:auto;
+    width:92px; height:92px; border-radius:50%;
+    border:3px solid #2ea6ff; background:rgba(8,14,22,0.72);
+    color:#eafcff; font-size:38px; font-weight:900;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; cursor:pointer;
+}
+.laneBtn:active{ background:#2ea6ff; color:#06210f; }
+
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="hud">
+<span class="k">SCORE</span> <span id="hudScore">0</span><br>
+<span class="k">LIVES</span> <span id="hudLives">3</span>
+</div>
+
+<div id="progressBox">
+<div id="progressLabel">ROAD TEST — 0 / 40s</div>
+<div class="bar"><div class="fill" id="progressFill"></div></div>
+</div>
+
+<div id="controls">
+<button class="laneBtn" id="leftBtn">◀</button>
+<button class="laneBtn" id="rightBtn">▶</button>
+</div>
+
+<!-- INTRO -->
+<div class="overlay show" id="introOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="popup.png">
+        <div class="panelContent">
+            <h1>WORK ORDER #05</h1>
+            <h2>FINAL ROAD TEST</h2>
+            <p>Casting, machining, assembly and the dyno bench are all done. Time for the real thing — take the finished car out for its final road test.</p>
+            <ul>
+                <li>Swipe, tap the arrows, or use ← → to change lanes</li>
+                <li>Dodge the other traffic</li>
+                <li>Grab stars for bonus points</li>
+                <li>Survive 40 seconds to pass the test</li>
+                <li>3 lives — don't crash them all</li>
+            </ul>
+            <button class="bigBtn" id="beginBtn">START TEST DRIVE</button>
+        </div>
+    </div>
+</div>
+
+<!-- PASSED -->
+<div class="overlay" id="passedOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="test_passed.png">
+        <div class="panelContent">
+            <h1>✅ ROAD TEST PASSED</h1>
+            <p>The car handled beautifully out there.</p>
+            <p>Raw Material → Casting → Machining → Assembly → Testing</p>
+        </div>
+    </div>
+</div>
+
+<!-- CERTIFICATE PREVIEW -->
+<div class="overlay" id="certOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="production_certificate.png">
+        <div class="panelContent" style="top:30%;bottom:16%;">
+            <div class="gradeLetter" id="certGrade">S</div>
+            <div class="statLine" id="certScore">Score: 0</div>
+            <button class="bigBtn" id="nextStageBtn">VIEW CERTIFICATE</button>
+        </div>
+    </div>
+</div>
+
+<!-- FAILED -->
+<div class="overlay" id="failedOverlay">
+    <div class="panelWrap">
+        <img class="frame" src="test_failed.png">
+        <div class="panelContent">
+            <h1 id="failReason">TEST FAILED</h1>
+            <button class="bigBtn retry" id="retryBtn">RETRY TEST</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+let audioContext = null;
+const roadImage = new Image();
+const carImage = new Image();
+const potholeImage = new Image();
+const coneImage = new Image();
+const truckImage = new Image();
+
+roadImage.src = "lane.jpg";
+carImage.src = "car.png";
+potholeImage.src = "pothole.png";
+coneImage.src = "cone.png";
+truckImage.src = "truck.png";
+roadImage.onerror = () => console.error("Unable to load road image: lane.jpg");
+carImage.onerror = () => console.error("Unable to load car image: car.png");
+potholeImage.onerror = () => console.error("Unable to load obstacle image: pothole.png");
+coneImage.onerror = () => console.error("Unable to load obstacle image: cone.png");
+truckImage.onerror = () => console.error("Unable to load obstacle image: truck.png");
+
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", ()=>setTimeout(resize,300));
+
+/* =====================
+   KIOSK / TOUCHSCREEN GUARDS
+===================== */
+
+const IS_TOUCH = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+
+document.addEventListener("gesturestart", e=>e.preventDefault());
+document.addEventListener("gesturechange", e=>e.preventDefault());
+document.addEventListener("contextmenu", e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+    const now = Date.now();
+    if(now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+}, {passive:false});
+
+document.addEventListener("touchmove", (e)=>{ e.preventDefault(); }, {passive:false});
+
+let lastInteraction = performance.now();
+function markInteraction(){ lastInteraction = performance.now(); }
+["mousedown","touchstart","keydown"].forEach(evt=>{
+    window.addEventListener(evt, markInteraction, {passive:true});
+});
+
+/* =====================
+   GAME CONSTANTS
+===================== */
+
+const LANE_COUNT = 3;
+const TEST_DURATION = 40;      // seconds to pass
+const MAX_LIVES = 3;
+const INVINCIBLE_TIME = 1.4;   // seconds of flashing safety after a hit
+
+let laneX = [];       // computed per-resize
+let laneWidth = 0;
+let roadX = 0, roadW = 0;
+
+let playerLane = 1;
+let playerY = 0;
+let lives, score, elapsed, state;   // state: "playing" | "passed" | "certificate" | "failed"
+let invincible = 0;
+let spawnTimer = 0;
+let obstacles = [];   // {lane, y, kind}
+let stars = [];       // {lane, y}
+let roadScroll = 0;
+let shakeTime = 0;
+let particles = [];
+
+function layoutRoad(){
+    roadX = canvas.width*0.342;
+    roadW = canvas.width*0.326;
+    laneWidth = roadW/LANE_COUNT;
+    laneX = [0.39,0.50,0.62].map(position => canvas.width*position);
+    playerY = canvas.height - 130;
+}
+layoutRoad();
+window.addEventListener("resize", layoutRoad);
+
+function resetGame(){
+    playerLane = 1;
+    lives = MAX_LIVES;
+    score = 0;
+    elapsed = 0;
+    invincible = 0;
+    spawnTimer = 1.2;
+    obstacles = [];
+    stars = [];
+    roadScroll = 0;
+    shakeTime = 0;
+    particles = [];
+    state = "playing";
+    hideAllOverlays();
+    updateHUD();
+}
+
+function hideAllOverlays(){
+    ["introOverlay","passedOverlay","certOverlay","failedOverlay"].forEach(id=>{
+        document.getElementById(id).classList.remove("show");
+    });
+}
+
+/* =====================
+   CONTROLS
+===================== */
+
+function moveLane(dir){
+    if(state!=="playing") return;
+    playerLane = Math.max(0, Math.min(LANE_COUNT-1, playerLane+dir));
+}
+
+function tapButton(el, fn){
+    el.addEventListener("click", (e)=>{ e.preventDefault(); markInteraction(); fn(); });
+    el.addEventListener("touchend", (e)=>{ e.preventDefault(); markInteraction(); fn(); }, {passive:false});
+}
+
+tapButton(document.getElementById("leftBtn"),  ()=> moveLane(-1));
+tapButton(document.getElementById("rightBtn"), ()=> moveLane(1));
+
+document.getElementById("beginBtn").addEventListener("click", ()=>{
+    enableSound();
+    resetGame();
+});
+document.getElementById("retryBtn").addEventListener("click", ()=>{
+    resetGame();
+    document.getElementById("introOverlay").classList.remove("show");
+});
+document.getElementById("nextStageBtn").addEventListener("click", ()=>{
+
+    window.location.href = "../../certificate_page/certificate.html";
+});
+
+window.addEventListener("keydown", (e)=>{
+    if(state!=="playing") return;
+    if(e.code==="ArrowLeft") moveLane(-1);
+    if(e.code==="ArrowRight") moveLane(1);
+});
+
+/* Swipe support directly on the canvas */
+let swipeStartX = null;
+canvas.addEventListener("touchstart", (e)=>{
+    if(e.touches && e.touches[0]) swipeStartX = e.touches[0].clientX;
+}, {passive:true});
+canvas.addEventListener("touchend", (e)=>{
+    if(swipeStartX===null) return;
+    const endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : swipeStartX;
+    const dx = endX - swipeStartX;
+    if(Math.abs(dx) > 40) moveLane(dx > 0 ? 1 : -1);
+    swipeStartX = null;
+}, {passive:true});
+
+/* =====================
+   IDLE / ATTRACT MODE
+===================== */
+
+function checkIdle(now){
+    const idle = now - lastInteraction;
+    if(state==="failed"){
+        if(idle > 9000) backToIntro();
+    } else if(document.getElementById("certOverlay").classList.contains("show")){
+        if(idle > 12000) backToIntro();
+    } else if(state==="playing" && idle > 60000){
+        backToIntro();
+    }
+}
+
+function backToIntro(){
+    resetGame();
+    state = "intro";
+    document.getElementById("introOverlay").classList.add("show");
+    lastInteraction = performance.now();
+}
+
+/* =====================
+   RESULT HANDLING
+===================== */
+
+function fail(reason){
+    if(state!=="playing") return;
+    state = "failed";
+    document.getElementById("failReason").innerText = reason;
+    document.getElementById("failedOverlay").classList.add("show");
+}
+
+function pass(){
+    if(state!=="playing") return;
+    state = "passed";
+    document.getElementById("passedOverlay").classList.add("show");
+    setTimeout(()=>{
+        document.getElementById("passedOverlay").classList.remove("show");
+        showCertificate();
+    }, 1900);
+}
+
+function showCertificate(){
+    state = "certificate";
+
+    // score: time survived + stars collected + lives remaining bonus
+    const finalScore = Math.round(score + lives*100);
+    const pct = Math.max(0, Math.min(1, finalScore/1000));
+
+    let grade = "C";
+    if(pct >= 0.9) grade = "S";
+    else if(pct >= 0.75) grade = "A";
+    else if(pct >= 0.55) grade = "B";
+
+    localStorage.setItem("finalScore", finalScore);
+    localStorage.setItem("finalGrade", grade);
+
+    document.getElementById("certGrade").innerText = grade;
+    document.getElementById("certScore").innerText = "Score: " + finalScore;
+    document.getElementById("certOverlay").classList.add("show");
+}
+
+function hitObstacle(){
+    if(invincible > 0) return;
+    playCollisionSound();
+    lives--;
+    invincible = INVINCIBLE_TIME;
+    shakeTime = 300;
+    updateHUD();
+    if(lives <= 0){
+        fail("CRASHED OUT");
+    }
+}
+
+function enableSound(){
+    if(!window.AudioContext){
+        console.error("Web Audio API is unavailable; collision sound is disabled.");
+        return;
+    }
+
+    audioContext = audioContext || new AudioContext();
+    if(audioContext.state === "suspended"){
+        audioContext.resume().catch(error => console.error("Unable to enable collision sound:", error));
+    }
+}
+
+function playCollisionSound(){
+    if(!audioContext || audioContext.state !== "running") return;
+
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const volume = audioContext.createGain();
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(125,now);
+    oscillator.frequency.exponentialRampToValueAtTime(48,now+0.16);
+    volume.gain.setValueAtTime(0.0001,now);
+    volume.gain.exponentialRampToValueAtTime(0.45,now+0.012);
+    volume.gain.exponentialRampToValueAtTime(0.0001,now+0.18);
+    oscillator.connect(volume);
+    volume.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now+0.19);
+}
+
+/* =====================
+   CORE LOOP
+===================== */
+
+let lastTime = performance.now();
+
+function update(now){
+    const dt = Math.min(0.05, (now-lastTime)/1000);
+    lastTime = now;
+
+    checkIdle(now);
+    if(shakeTime>0) shakeTime -= dt*1000;
+    if(invincible>0) invincible -= dt;
+
+    if(state==="playing"){
+        elapsed += dt;
+
+        // mild difficulty ramp: speed & spawn rate increase slowly
+        const speed = 260 + Math.min(220, elapsed*5);
+        roadScroll += speed*dt;
+
+        spawnTimer -= dt;
+        if(spawnTimer <= 0){
+            spawnWave(speed);
+            spawnTimer = Math.max(0.55, 1.3 - elapsed*0.012);
+        }
+
+        obstacles.forEach(o => o.y += speed*dt);
+        stars.forEach(s => s.y += speed*dt);
+
+        // collisions: anything in the player's lane crossing the player's y-band
+        for(let i=obstacles.length-1;i>=0;i--){
+            const o = obstacles[i];
+            const collisionRange = (Math.min(58,laneWidth*0.62)*1.64 + getObstacleSize(o.kind).height)/2;
+            if(o.lane===playerLane && Math.abs(o.y-playerY) < collisionRange){
+                obstacles.splice(i,1);
+                hitObstacle();
+                continue;
+            }
+            if(o.y > canvas.height+80) obstacles.splice(i,1);
+        }
+
+        for(let i=stars.length-1;i>=0;i--){
+            const s = stars[i];
+            if(s.lane===playerLane && s.y > playerY-46 && s.y < playerY+46){
+                stars.splice(i,1);
+                score += 20;
+                spawnSparkle(laneX[s.lane], playerY);
+                updateHUD();
+                continue;
+            }
+            if(s.y > canvas.height+80) stars.splice(i,1);
+        }
+
+        score += dt*8; // small continuous survival score
+        updateHUD();
+        updateProgress();
+
+        if(elapsed >= TEST_DURATION){
+            pass();
+        }
+    }
+
+    particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.life-=dt*1.6; });
+    particles = particles.filter(p=>p.life>0);
+
+    requestAnimationFrame(update);
+}
+requestAnimationFrame(update);
+
+function spawnWave(speed){
+    // One obstacle in a random lane, occasionally a star in a different lane.
+    const oLane = Math.floor(Math.random()*LANE_COUNT);
+    const kinds = ["pothole","cone","truck"];
+    obstacles.push({lane:oLane, y:-80, kind:kinds[Math.floor(Math.random()*kinds.length)]});
+
+    if(Math.random() < 0.5){
+        let sLane = Math.floor(Math.random()*LANE_COUNT);
+        if(sLane===oLane) sLane = (sLane+1)%LANE_COUNT;
+        stars.push({lane:sLane, y:-140});
+    }
+}
+
+function spawnSparkle(x,y){
+    for(let i=0;i<14;i++){
+        particles.push({
+            x, y,
+            vx:(Math.random()-0.5)*4, vy:-Math.random()*3-1,
+            life:1, color:"#ffd24a"
+        });
+    }
+}
+
+function updateHUD(){
+    document.getElementById("hudScore").innerText = Math.round(score);
+    document.getElementById("hudLives").innerText = Math.max(0,lives);
+}
+
+function updateProgress(){
+    const secs = Math.min(TEST_DURATION, Math.floor(elapsed));
+    document.getElementById("progressLabel").innerText = "ROAD TEST — " + secs + " / " + TEST_DURATION + "s";
+    document.getElementById("progressFill").style.width = Math.min(100, elapsed/TEST_DURATION*100) + "%";
+}
+
+/* =====================
+   DRAW
+===================== */
+
+function drawRoad(){
+    if(roadImage.complete && roadImage.naturalWidth){
+        const offset = roadScroll % canvas.height;
+        ctx.drawImage(roadImage,0,offset,canvas.width,canvas.height);
+        ctx.drawImage(roadImage,0,offset-canvas.height,canvas.width,canvas.height);
+        return;
+    }
+
+    // sky
+    const sky = ctx.createLinearGradient(0,0,0,canvas.height*0.4);
+    sky.addColorStop(0,"#1a2a4a");
+    sky.addColorStop(1,"#0f1726");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // grass either side of the road
+    ctx.fillStyle = "#13371f";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // road surface
+    ctx.fillStyle = "#2b2f36";
+    ctx.fillRect(roadX,0,roadW,canvas.height);
+
+    // road edge lines
+    ctx.strokeStyle = "#ffd24a";
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(roadX,0); ctx.lineTo(roadX,canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(roadX+roadW,0); ctx.lineTo(roadX+roadW,canvas.height); ctx.stroke();
+
+    // scrolling lane dashes
+    ctx.strokeStyle = "rgba(255,255,255,0.65)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([26,22]);
+    for(let i=1;i<LANE_COUNT;i++){
+        const x = roadX + laneWidth*i;
+        ctx.beginPath();
+        ctx.lineDashOffset = -roadScroll;
+        ctx.moveTo(x,0); ctx.lineTo(x,canvas.height);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+}
+
+function drawCar(x,y,flash){
+    const w=Math.min(58,laneWidth*0.62);
+    const h=w*1.64;
+    ctx.save();
+    ctx.translate(x,y);
+    if(flash) ctx.globalAlpha = 0.55 + Math.sin(performance.now()*0.03)*0.35;
+
+    if(carImage.complete && carImage.naturalWidth){
+        ctx.drawImage(carImage,251,42,176,289,-w/2,-h/2,w,h);
+    } else {
+        ctx.fillStyle = "#4ec8ff";
+        roundRectPath(-w/2,-h/2,w,h,14);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function getObstacleSize(kind){
+    if(kind==="truck"){
+        const width = Math.min(64,laneWidth*0.7);
+        return {width,height:width*2.3};
+    }
+    if(kind==="pothole"){
+        const width = Math.min(88,laneWidth*0.78);
+        return {width,height:width*0.55};
+    }
+    const width = Math.min(48,laneWidth*0.48);
+    return {width,height:width*1.25};
+}
+
+function drawObstacle(kind,x,y){
+    const sprite = {
+        pothole:{image:potholeImage,crop:[0,0,677,369]},
+        cone:{image:coneImage,crop:[202,16,273,339]},
+        truck:{image:truckImage,crop:[64,62,243,557]}
+    }[kind];
+    const {image,crop} = sprite;
+    if(!image.complete || !image.naturalWidth) return;
+
+    const {width,height} = getObstacleSize(kind);
+    ctx.drawImage(image,...crop,x-width/2,y-height/2,width,height);
+}
+
+function roundRectPath(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+}
+
+function drawStar(x,y){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(performance.now()*0.002);
+    ctx.fillStyle = "#ffd24a";
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+        const a1 = (i*2*Math.PI/5) - Math.PI/2;
+        const a2 = a1 + Math.PI/5;
+        ctx.lineTo(Math.cos(a1)*16, Math.sin(a1)*16);
+        ctx.lineTo(Math.cos(a2)*7, Math.sin(a2)*7);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function draw(){
+    ctx.save();
+    if(shakeTime>0){
+        const mag = Math.min(6, shakeTime/300*6);
+        ctx.translate((Math.random()-0.5)*mag, (Math.random()-0.5)*mag);
+    }
+
+    drawRoad();
+
+    stars.forEach(s => drawStar(laneX[s.lane], s.y));
+    obstacles.forEach(o=>{
+        drawObstacle(o.kind,laneX[o.lane],o.y);
+    });
+
+    if(state==="playing" || state==="passed"){
+        drawCar(laneX[playerLane], playerY, invincible>0);
+    }
+
+    particles.forEach(p=>{
+        ctx.globalAlpha = Math.max(0,p.life);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x-2,p.y-2,4,4);
+        ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+    requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* start on intro */
+resetGame();
+state = "intro";
+document.getElementById("introOverlay").classList.add("show");
+
+</script>
+</body>
+</html>

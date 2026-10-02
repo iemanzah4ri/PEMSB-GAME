@@ -1,7 +1,8 @@
-const CACHE_NAME = 'pemsb-game-v2';
+const CACHE_NAME = 'pemsb-game-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './mainmenu.mp3',
   './manifest.json',
   './menu_background.png',
   './stage1.png',

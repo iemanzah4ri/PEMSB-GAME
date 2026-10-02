@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pemsb-game-v3';
+const CACHE_NAME = 'pemsb-game-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS_TO_CACHE = [
   './stage1/scrap.png',
   './stage1/popup.png',
   './stage2/stage2.html',
+  './stage2/stage2.mp3',
   './stage2/stage2_background.png',
   './stage2/popup.png',
   './stage2/casting_failure.png',
@@ -43,6 +44,7 @@ const ASSETS_TO_CACHE = [
   './stage4/timing_chain_cover.png',
   './stage4/valve_cover.png',
   './stage5/stage5.html',
+  './stage5new/stage5.mp3',
   './stage5/engine_test_room.png',
   './stage5/final_engine.png',
   './stage5/rpm_gauge.png',

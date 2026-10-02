@@ -44,6 +44,10 @@ canvas{
 
 #beginBtn{
 
+    position:relative;
+    z-index:5001;
+    touch-action:manipulation;
+
     margin-top:20px;
 
     width:280px;
@@ -242,21 +246,20 @@ document.addEventListener(
     e => e.preventDefault()
 );
 
-document
-.getElementById("beginBtn")
-.addEventListener(
-"click",
-()=>{
-    document
-    .getElementById("introPopup")
-    .style.display =
-    "none";
+let operationStarted = false;
 
-    
+function startOperation(event){
+    event.preventDefault();
+    if(operationStarted)
+    return;
 
+    operationStarted = true;
+    document.getElementById("introPopup").style.display = "none";
 }
 
-);
+const beginButton = document.getElementById("beginBtn");
+beginButton.addEventListener("pointerdown", startOperation);
+beginButton.addEventListener("click", startOperation);
 document
     .getElementById("nextStage")
     .addEventListener(
@@ -264,7 +267,7 @@ document
     ()=>{
 
         window.location.href =
-        "../stage5/stage5.html";
+        "../stage5new/stage5.html";
 
     }
     );
@@ -275,6 +278,8 @@ document.getElementById("game");
 
 const ctx =
 canvas.getContext("2d");
+
+let assemblyAudioContext = null;
 
 /* IMAGES */
 
@@ -491,6 +496,8 @@ function dragStart(x,y){
     if(!hoveredPart)
     return;
 
+    enableAssemblySound().then(() => playAssemblySound("pickup"));
+
     draggedPart =
     hoveredPart;
 
@@ -555,6 +562,7 @@ function dragEnd(){
         ){
 
             draggedPart.placed = true;
+            playAssemblySound("placed");
 
             draggedPart.installX =
             slot.x +
@@ -608,6 +616,49 @@ function dragEnd(){
 
 }
 
+function enableAssemblySound(){
+
+    if(!window.AudioContext){
+        console.error("Web Audio API is unavailable; assembly sounds are disabled.");
+        return Promise.resolve();
+    }
+
+    assemblyAudioContext =
+    assemblyAudioContext || new AudioContext();
+
+    if(assemblyAudioContext.state === "suspended"){
+        return assemblyAudioContext.resume().catch(error =>
+            console.error("Unable to enable assembly sounds:", error)
+        );
+    }
+
+    return Promise.resolve();
+
+}
+
+function playAssemblySound(action){
+
+    if(!assemblyAudioContext || assemblyAudioContext.state !== "running")
+    return;
+
+    const now = assemblyAudioContext.currentTime;
+    const oscillator = assemblyAudioContext.createOscillator();
+    const volume = assemblyAudioContext.createGain();
+    const isPlaced = action === "placed";
+    const duration = isPlaced ? 0.16 : 0.1;
+
+    oscillator.type = isPlaced ? "triangle" : "sine";
+    oscillator.frequency.setValueAtTime(isPlaced ? 560 : 380,now);
+    oscillator.frequency.exponentialRampToValueAtTime(isPlaced ? 880 : 560,now+duration);
+    volume.gain.setValueAtTime(0.0001,now);
+    volume.gain.exponentialRampToValueAtTime(isPlaced ? 0.2 : 0.12,now+0.01);
+    volume.gain.exponentialRampToValueAtTime(0.0001,now+duration);
+    oscillator.connect(volume);
+    volume.connect(assemblyAudioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now+duration);
+
+}
 
 /* EVENTS */
 

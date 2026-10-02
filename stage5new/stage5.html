@@ -101,6 +101,8 @@ canvas{ display:block; touch-action:none; }
 </head>
 <body>
 
+<audio id="stageMusic" src="stage5.mp3" autoplay loop preload="auto"></audio>
+
 <canvas id="game"></canvas>
 
 <div id="hud">
@@ -178,6 +180,14 @@ canvas{ display:block; touch-action:none; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 let audioContext = null;
+const stageMusic = document.getElementById("stageMusic");
+stageMusic.play().catch(() => {
+    const startStageMusic = () => {
+        stageMusic.play().catch(error => console.error("Unable to play Stage 5 music:", error));
+    };
+    document.addEventListener("pointerdown", startStageMusic, {once:true});
+    document.addEventListener("keydown", startStageMusic, {once:true});
+});
 const roadImage = new Image();
 const carImage = new Image();
 const potholeImage = new Image();
@@ -233,7 +243,7 @@ function markInteraction(){ lastInteraction = performance.now(); }
 ===================== */
 
 const LANE_COUNT = 3;
-const TEST_DURATION = 40;      // seconds to pass
+const TEST_DURATION = 30;      // seconds to pass
 const MAX_LIVES = 3;
 const INVINCIBLE_TIME = 1.4;   // seconds of flashing safety after a hit
 
@@ -311,8 +321,7 @@ document.getElementById("retryBtn").addEventListener("click", ()=>{
     document.getElementById("introOverlay").classList.remove("show");
 });
 document.getElementById("nextStageBtn").addEventListener("click", ()=>{
-
-    window.location.href = "../../certificate_page/certificate.html";
+    window.location.href = "../certificate_page/certificate.html";
 });
 
 window.addEventListener("keydown", (e)=>{
@@ -330,7 +339,7 @@ canvas.addEventListener("touchend", (e)=>{
     if(swipeStartX===null) return;
     const endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : swipeStartX;
     const dx = endX - swipeStartX;
-    if(Math.abs(dx) > 40) moveLane(dx > 0 ? 1 : -1);
+    if(Math.abs(dx) > 30) moveLane(dx > 0 ? 1 : -1);
     swipeStartX = null;
 }, {passive:true});
 

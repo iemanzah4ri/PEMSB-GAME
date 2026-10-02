@@ -183,6 +183,8 @@ canvas{
 
 <body>
 
+<audio id="stageMusic" src="stage4.mp3" autoplay loop preload="auto"></audio>
+
 <div id="hud">
 Assembly: 0 / 5
 </div>
@@ -275,6 +277,14 @@ document
 const canvas =
 document.getElementById("game");
 
+const stageMusic = document.getElementById("stageMusic");
+stageMusic.play().catch(() => {
+    const startStageMusic = () => {
+        stageMusic.play().catch(error => console.error("Unable to play Stage 4 music:", error));
+    };
+    document.addEventListener("pointerdown", startStageMusic, {once:true});
+    document.addEventListener("keydown", startStageMusic, {once:true});
+});
 
 const ctx =
 canvas.getContext("2d");

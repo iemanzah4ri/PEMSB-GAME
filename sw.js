@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pemsb-game-v5';
+const CACHE_NAME = 'pemsb-game-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -29,6 +29,7 @@ const ASSETS_TO_CACHE = [
   './stage3/mill_tool.png',
   './stage3/popup.png',
   './stage4/stage4.html',
+  './stage4/stage4.mp3',
   './stage4/assembly_station.png',
   './stage4/assembly_station1.png',
   './stage4/complete_engine.png',
